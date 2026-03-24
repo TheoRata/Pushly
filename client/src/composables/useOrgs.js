@@ -10,7 +10,7 @@ export function useOrgs() {
     loading.value = true
     try {
       const data = await api.get('/orgs')
-      orgs.value = data
+      orgs.value = data.orgs || data || []
     } catch (err) {
       console.error('Failed to refresh orgs:', err)
       throw err
