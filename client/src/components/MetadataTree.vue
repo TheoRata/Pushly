@@ -86,9 +86,21 @@ function clearAll() {
   emit('update:modelValue', [])
 }
 
-// Category expand/collapse
+// Category expand/collapse — tracked separately since filteredCategories creates new objects
+const expandedCategories = ref(new Set())
+
 function toggleExpand(category) {
-  category.expanded = !category.expanded
+  if (expandedCategories.value.has(category.name)) {
+    expandedCategories.value.delete(category.name)
+  } else {
+    expandedCategories.value.add(category.name)
+  }
+  // Trigger reactivity
+  expandedCategories.value = new Set(expandedCategories.value)
+}
+
+function isExpanded(category) {
+  return expandedCategories.value.has(category.name)
 }
 
 // Category checkbox state
@@ -330,7 +342,7 @@ onMounted(() => {
           <!-- Expand chevron -->
           <svg
             class="w-4 h-4 text-[var(--text-muted)] transition-transform duration-200 shrink-0"
-            :class="category.expanded ? 'rotate-90' : ''"
+            :class="isExpanded(category) ? 'rotate-90' : ''"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -398,7 +410,7 @@ onMounted(() => {
 
         <!-- Expanded component list -->
         <div
-          v-if="category.expanded"
+          v-if="isExpanded(category)"
           class="bg-[var(--bg-primary)]"
         >
           <div v-if="category.loading" class="flex items-center gap-2 px-6 py-3">
