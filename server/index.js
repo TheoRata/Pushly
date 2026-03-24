@@ -11,6 +11,7 @@ import { cleanupStaleLocks } from './services/lock.js'
 import { cleanupOldWorkspaces } from './services/workspace.js'
 import { cleanupOldSnapshots } from './services/rollback.js'
 import { archiveOldRecords } from './services/history.js'
+import { registerClient, unregisterClient, getActiveOperations } from './services/operations.js'
 
 import orgsRouter from './routes/orgs.js'
 import metadataRouter from './routes/metadata.js'
@@ -70,9 +71,19 @@ const server = createServer(app)
 const wss = new WebSocketServer({ server })
 
 wss.on('connection', (ws) => {
+  registerClient(ws)
+
+  // Send any active operations on connect (for tab reconnect)
+  const active = getActiveOperations()
+  if (active.length) {
+    ws.send(JSON.stringify({ event: 'operations:active', data: active }))
+  }
+
   ws.on('message', (data) => {
     console.log('WS received:', data.toString())
   })
+
+  ws.on('close', () => unregisterClient(ws))
 })
 
 // Port detection: try 3000-3010 using a temporary net server to test availability

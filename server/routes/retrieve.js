@@ -4,11 +4,14 @@ import { retrieveMetadata } from '../services/sf-cli.js'
 import { createWorkspace } from '../services/workspace.js'
 import { writeRecord, readRecords, readRecord } from '../services/history.js'
 import { resolveUser } from '../services/user.js'
+import {
+  createOperation,
+  updateOperation,
+  completeOperation,
+  getOperation,
+} from '../services/operations.js'
 
 const router = Router()
-
-// In-memory operation tracker
-const operations = new Map()
 
 /**
  * GET /api/retrieve — list recent retrieve operations
@@ -58,26 +61,31 @@ router.post('/', async (req, res) => {
     }
     writeRecord(record, dataDir)
 
-    // Track the operation
-    operations.set(operationId, { status: 'in_progress' })
+    // Track the operation via operations manager
+    createOperation(operationId, 'retrieve', { orgAlias, components })
 
     // Return immediately, run retrieve in background
     res.json({ operationId, workspaceId: workspace.id })
 
     // Execute retrieve asynchronously
     try {
+      updateOperation(operationId, {
+        status: 'running',
+        message: `Starting retrieve from ${orgAlias}`,
+      })
+
       const result = await retrieveMetadata(orgAlias, components, workspace.path)
       record.status = 'success'
       record.completedAt = new Date().toISOString()
       record.result = result
       writeRecord(record, dataDir)
-      operations.set(operationId, { status: 'success', result })
+      completeOperation(operationId, { components, result })
     } catch (err) {
       record.status = 'failed'
       record.completedAt = new Date().toISOString()
       record.error = err.message || String(err)
       writeRecord(record, dataDir)
-      operations.set(operationId, { status: 'failed', error: record.error })
+      completeOperation(operationId, { error: record.error, components })
     }
   } catch (err) {
     res.status(500).json({ error: err.message || 'Failed to start retrieve' })
@@ -91,10 +99,10 @@ router.get('/:id/status', (req, res) => {
   const { id } = req.params
   const dataDir = req.app.locals.dataDir
 
-  // Check in-memory first for latest state
-  const op = operations.get(id)
+  // Check operations manager first for latest state
+  const op = getOperation(id)
   if (op) {
-    return res.json({ operationId: id, ...op })
+    return res.json({ operationId: id, status: op.status, log: op.log, result: op.result })
   }
 
   // Fall back to history record

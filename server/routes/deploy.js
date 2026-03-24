@@ -6,11 +6,14 @@ import { createSnapshot, getRollbackPath } from '../services/rollback.js'
 import { writeRecord, readRecord } from '../services/history.js'
 import { getWorkspace } from '../services/workspace.js'
 import { resolveUser } from '../services/user.js'
+import {
+  createOperation,
+  updateOperation,
+  completeOperation,
+  getOperation,
+} from '../services/operations.js'
 
 const router = Router()
-
-// In-memory operation tracker
-const operations = new Map()
 
 /**
  * POST /api/deploy/validate — dry-run deploy
@@ -81,27 +84,31 @@ router.post('/', async (req, res) => {
     startedAt: new Date().toISOString(),
   }
   writeRecord(record, dataDir)
-  operations.set(operationId, { status: 'in_progress' })
+  createOperation(operationId, 'deploy', { targetOrg, components: components || [] })
 
   // Return immediately
   res.json({ operationId })
 
   // Execute deploy asynchronously
   try {
+    updateOperation(operationId, {
+      status: 'running',
+      message: `Starting deploy to ${targetOrg}`,
+    })
+
     const result = await deployMetadata(targetOrg, resolvedPath)
     record.status = 'success'
     record.completedAt = new Date().toISOString()
     record.result = result
     writeRecord(record, dataDir)
-    operations.set(operationId, { status: 'success', result })
+    completeOperation(operationId, { components: components || [], result })
   } catch (err) {
     record.status = 'failed'
     record.completedAt = new Date().toISOString()
     record.error = err.message || String(err)
     record.failedComponents = err.result?.details?.componentFailures || []
     writeRecord(record, dataDir)
-    operations.set(operationId, {
-      status: 'failed',
+    completeOperation(operationId, {
       error: record.error,
       failedComponents: record.failedComponents,
     })
@@ -156,23 +163,32 @@ router.post('/:id/retry-failed', async (req, res) => {
     startedAt: new Date().toISOString(),
   }
   writeRecord(record, dataDir)
-  operations.set(retryId, { status: 'in_progress' })
+  createOperation(retryId, 'deploy', {
+    targetOrg: original.targetOrg,
+    components: failedComponents,
+    retryOf: id,
+  })
 
   res.json({ operationId: retryId })
 
   try {
+    updateOperation(retryId, {
+      status: 'running',
+      message: `Retrying failed components on ${original.targetOrg}`,
+    })
+
     const result = await deployMetadata(original.targetOrg, resolvedPath)
     record.status = 'success'
     record.completedAt = new Date().toISOString()
     record.result = result
     writeRecord(record, dataDir)
-    operations.set(retryId, { status: 'success', result })
+    completeOperation(retryId, { components: failedComponents, result })
   } catch (err) {
     record.status = 'failed'
     record.completedAt = new Date().toISOString()
     record.error = err.message || String(err)
     writeRecord(record, dataDir)
-    operations.set(retryId, { status: 'failed', error: record.error })
+    completeOperation(retryId, { error: record.error })
   } finally {
     releaseLock(original.targetOrg, dataDir)
   }
@@ -219,23 +235,32 @@ router.post('/:id/rollback', async (req, res) => {
     startedAt: new Date().toISOString(),
   }
   writeRecord(record, dataDir)
-  operations.set(rollbackId, { status: 'in_progress' })
+  createOperation(rollbackId, 'rollback', {
+    targetOrg: original.targetOrg,
+    components: original.components || [],
+    rollbackOf: id,
+  })
 
   res.json({ operationId: rollbackId })
 
   try {
+    updateOperation(rollbackId, {
+      status: 'running',
+      message: `Rolling back deployment on ${original.targetOrg}`,
+    })
+
     const result = await deployMetadata(original.targetOrg, snapshotPath)
     record.status = 'success'
     record.completedAt = new Date().toISOString()
     record.result = result
     writeRecord(record, dataDir)
-    operations.set(rollbackId, { status: 'success', result })
+    completeOperation(rollbackId, { components: original.components || [], result })
   } catch (err) {
     record.status = 'failed'
     record.completedAt = new Date().toISOString()
     record.error = err.message || String(err)
     writeRecord(record, dataDir)
-    operations.set(rollbackId, { status: 'failed', error: record.error })
+    completeOperation(rollbackId, { error: record.error })
   } finally {
     releaseLock(original.targetOrg, dataDir)
   }
@@ -248,11 +273,13 @@ router.get('/:id/status', (req, res) => {
   const { id } = req.params
   const dataDir = req.app.locals.dataDir
 
-  const op = operations.get(id)
+  // Check operations manager first for latest state
+  const op = getOperation(id)
   if (op) {
-    return res.json({ operationId: id, ...op })
+    return res.json({ operationId: id, status: op.status, log: op.log, result: op.result })
   }
 
+  // Fall back to history record
   const record = readRecord(id, dataDir)
   if (!record) {
     return res.status(404).json({ error: 'Operation not found' })
