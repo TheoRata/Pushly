@@ -3,3 +3,8 @@ client/dist/
 .DS_Store
 *.log
 .env
+data/history/
+data/history/archive/
+data/rollbacks/
+workspaces/
+.superpowers/
