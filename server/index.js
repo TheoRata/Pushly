@@ -1,5 +1,6 @@
 import express from 'express'
 import { createServer } from 'http'
+import { createServer as createNetServer } from 'net'
 import { WebSocketServer } from 'ws'
 import open from 'open'
 import { fileURLToPath } from 'url'
@@ -36,19 +37,31 @@ wss.on('connection', (ws) => {
   })
 })
 
-// Port detection: try 3000-3010
+// Port detection: try 3000-3010 using a temporary net server to test availability
 async function findPort(start = 3000, end = 3010) {
   for (let port = start; port <= end; port++) {
-    try {
+    const available = await new Promise((resolve) => {
+      const tester = createNetServer()
+      tester.once('error', (err) => {
+        if (err.code === 'EADDRINUSE') {
+          resolve(false)
+        } else {
+          throw err // Don't swallow non-port-conflict errors
+        }
+      })
+      tester.listen(port, () => {
+        tester.close(() => resolve(true))
+      })
+    })
+    if (available) {
       await new Promise((resolve, reject) => {
-        server.listen(port, () => resolve())
+        server.listen(port, resolve)
         server.once('error', reject)
       })
       return port
-    } catch {
-      if (port === end) throw new Error(`No available port in range ${start}-${end}`)
     }
   }
+  throw new Error(`No available port in range ${start}-${end}`)
 }
 
 // Start unless imported for testing
