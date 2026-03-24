@@ -1,0 +1,161 @@
+import { spawn } from 'child_process'
+import { translateError } from '../utils/error-translator.js'
+
+/**
+ * Runs an sf command with --json flag, returns parsed result.
+ * @param {string[]} args - CLI arguments (without 'sf' prefix)
+ * @param {object} options - Optional spawn options
+ * @param {string} options.cwd - Working directory
+ * @param {number} options.timeout - Timeout in ms (default 120000)
+ * @returns {Promise<any>} Parsed JSON result
+ */
+export async function sfCommand(args, options = {}) {
+  const { cwd, timeout = 120_000 } = options
+  const fullArgs = [...args]
+  if (!fullArgs.includes('--json')) {
+    fullArgs.push('--json')
+  }
+
+  return new Promise((resolve, reject) => {
+    const proc = spawn('sf', fullArgs, {
+      cwd,
+      timeout,
+      env: { ...process.env },
+    })
+
+    let stdout = ''
+    let stderr = ''
+
+    proc.stdout.on('data', (chunk) => {
+      stdout += chunk.toString()
+    })
+    proc.stderr.on('data', (chunk) => {
+      stderr += chunk.toString()
+    })
+
+    proc.on('error', (err) => {
+      reject({
+        ...translateError(err.message),
+        stderr: err.message,
+      })
+    })
+
+    proc.on('close', (code) => {
+      // Try to parse JSON from stdout
+      let parsed
+      try {
+        parsed = JSON.parse(stdout)
+      } catch {
+        // sf --version --json may output plain text
+        if (code === 0) {
+          resolve(stdout.trim())
+          return
+        }
+        const raw = stderr || stdout || `sf exited with code ${code}`
+        reject({ ...translateError(raw), stderr: raw })
+        return
+      }
+
+      if (code === 0) {
+        resolve(parsed.result !== undefined ? parsed.result : parsed)
+      } else {
+        // Salesforce CLI error responses have a message property
+        const errorMsg = parsed.message || parsed.name || stderr || `sf exited with code ${code}`
+        reject({ ...translateError(errorMsg), stderr, result: parsed })
+      }
+    })
+  })
+}
+
+/**
+ * Runs an sf command and streams stdout line-by-line via callback.
+ * @param {string[]} args - CLI arguments (without 'sf' prefix)
+ * @param {function(string): void} onData - Called for each line of stdout
+ * @param {object} options - Optional spawn options
+ * @returns {Promise<number>} Exit code
+ */
+export async function sfCommandStream(args, onData, options = {}) {
+  const { cwd, timeout = 120_000 } = options
+
+  return new Promise((resolve, reject) => {
+    const proc = spawn('sf', args, {
+      cwd,
+      timeout,
+      env: { ...process.env },
+    })
+
+    let buffer = ''
+
+    proc.stdout.on('data', (chunk) => {
+      buffer += chunk.toString()
+      const lines = buffer.split('\n')
+      buffer = lines.pop() // Keep incomplete last line in buffer
+      for (const line of lines) {
+        if (line.trim()) onData(line)
+      }
+    })
+
+    proc.stderr.on('data', (chunk) => {
+      const lines = chunk.toString().split('\n')
+      for (const line of lines) {
+        if (line.trim()) onData(line)
+      }
+    })
+
+    proc.on('error', (err) => {
+      reject(err)
+    })
+
+    proc.on('close', (code) => {
+      // Flush remaining buffer
+      if (buffer.trim()) onData(buffer)
+      resolve(code)
+    })
+  })
+}
+
+// ── Specific wrapper functions ──────────────────────────────────────
+
+export async function listOrgs() {
+  return sfCommand(['org', 'list'])
+}
+
+export async function orgDisplay(alias) {
+  return sfCommand(['org', 'display', '--target-org', alias])
+}
+
+export async function orgLoginWeb(alias, instanceUrl) {
+  const args = ['org', 'login', 'web', '--alias', alias]
+  if (instanceUrl) args.push('--instance-url', instanceUrl)
+  return sfCommand(args)
+}
+
+export async function listMetadataTypes(orgAlias) {
+  return sfCommand(['org', 'list', 'metadata-types', '--target-org', orgAlias])
+}
+
+export async function listMetadata(orgAlias, metadataType) {
+  return sfCommand(['org', 'list', 'metadata', '--metadata-type', metadataType, '--target-org', orgAlias])
+}
+
+export async function retrieveMetadata(orgAlias, components, workspacePath) {
+  const args = ['project', 'retrieve', 'start', '--target-org', orgAlias]
+  if (Array.isArray(components) && components.length > 0) {
+    args.push('--metadata', components.join(','))
+  }
+  if (workspacePath) {
+    args.push('--output-dir', workspacePath)
+  }
+  return sfCommand(args, { cwd: workspacePath })
+}
+
+export async function deployMetadata(targetOrg, workspacePath, options = {}) {
+  const args = ['project', 'deploy', 'start', '--target-org', targetOrg]
+  if (options.testLevel) args.push('--test-level', options.testLevel)
+  if (options.dryRun) args.push('--dry-run')
+  return sfCommand(args, { cwd: workspacePath })
+}
+
+export async function validateDeploy(targetOrg, workspacePath) {
+  return deployMetadata(targetOrg, workspacePath, { dryRun: true })
+}
