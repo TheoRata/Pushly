@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import crypto from 'node:crypto'
-import { deployMetadata, validateDeploy, retrieveMetadata } from '../services/sf-cli.js'
+import { deployMetadata, validateDeploy } from '../services/sf-cli.js'
 import { acquireLock, releaseLock } from '../services/lock.js'
 import { createSnapshot, getRollbackPath } from '../services/rollback.js'
 import { writeRecord, readRecord } from '../services/history.js'
