@@ -1,4 +1,5 @@
 import express from 'express'
+import fs from 'node:fs'
 import { createServer } from 'http'
 import { createServer as createNetServer } from 'net'
 import { WebSocketServer } from 'ws'
@@ -6,16 +7,53 @@ import open from 'open'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 
+import { cleanupStaleLocks } from './services/lock.js'
+import { cleanupOldWorkspaces } from './services/workspace.js'
+import { cleanupOldSnapshots } from './services/rollback.js'
+import { archiveOldRecords } from './services/history.js'
+
+import orgsRouter from './routes/orgs.js'
+import metadataRouter from './routes/metadata.js'
+import retrieveRouter from './routes/retrieve.js'
+import deployRouter from './routes/deploy.js'
+import historyRouter from './routes/history.js'
+import bundlesRouter from './routes/bundles.js'
+
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
+// Initialize data directories
+const baseDir = join(__dirname, '..')
+const dataDir = join(baseDir, 'data')
+;['history', 'history/archive', 'bundles', 'rollbacks'].forEach((dir) => {
+  fs.mkdirSync(join(dataDir, dir), { recursive: true })
+})
+
+// Cleanup on startup
+cleanupStaleLocks(dataDir)
+cleanupOldWorkspaces(30, baseDir)
+cleanupOldSnapshots(90, dataDir)
+archiveOldRecords(dataDir, 180)
+
 const app = express()
 app.use(express.json())
+
+// Make paths available to routes
+app.locals.dataDir = dataDir
+app.locals.baseDir = baseDir
 
 // Health check
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
+
+// API routes
+app.use('/api/orgs', orgsRouter)
+app.use('/api/metadata', metadataRouter)
+app.use('/api/retrieve', retrieveRouter)
+app.use('/api/deploy', deployRouter)
+app.use('/api/history', historyRouter)
+app.use('/api/bundles', bundlesRouter)
 
 // Static files (production build)
 const clientDist = join(__dirname, '..', 'client', 'dist')
