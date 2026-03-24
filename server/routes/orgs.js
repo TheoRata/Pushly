@@ -10,16 +10,34 @@ const router = Router()
 router.get('/', async (_req, res) => {
   try {
     const result = await listOrgs()
-    // result typically has { nonScratchOrgs, scratchOrgs }
-    const orgs = [
+    // sf org list returns { other, nonScratchOrgs, scratchOrgs, sandboxes }
+    // Merge all, deduplicate by orgId
+    const allOrgs = [
+      ...(result.other || []),
       ...(result.nonScratchOrgs || []),
       ...(result.scratchOrgs || []),
+      ...(result.sandboxes || []),
     ]
+    const seen = new Set()
+    const orgs = allOrgs.filter((org) => {
+      const key = org.orgId || org.username
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
 
-    // Enrich with basic health info (alias-based)
+    // Normalize fields for the frontend
     const enriched = orgs.map((org) => ({
+      alias: org.alias || org.username,
+      username: org.username,
+      type: org.isSandbox ? 'sandbox' : 'production',
+      status: org.connectedStatus === 'Connected' ? 'connected' : 'expired',
+      lastUsed: org.lastUsed,
+      orgId: org.orgId,
+      instanceUrl: org.instanceUrl,
+      name: org.name,
+      // Pass through original fields too
       ...org,
-      isConnected: org.connectedStatus === 'Connected' || org.isExpired === false,
     }))
 
     res.json({ orgs: enriched })
