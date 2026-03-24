@@ -1,0 +1,14 @@
+{
+  "name": "sf-deploy-manager-server",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "express": "^4.21.0",
+    "ws": "^8.18.0",
+    "open": "^10.1.0",
+    "uuid": "^11.0.0"
+  },
+  "devDependencies": {
+    "vitest": "^3.0.0"
+  }
+}
