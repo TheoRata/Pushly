@@ -13,6 +13,7 @@ import { cleanupOldSnapshots } from './services/rollback.js'
 import { archiveOldRecords } from './services/history.js'
 import { registerClient, unregisterClient, getActiveOperations } from './services/operations.js'
 
+import { checkPrerequisites } from './utils/prerequisites.js'
 import orgsRouter from './routes/orgs.js'
 import metadataRouter from './routes/metadata.js'
 import retrieveRouter from './routes/retrieve.js'
@@ -46,6 +47,11 @@ app.locals.baseDir = baseDir
 // Health check
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
+})
+
+// Prerequisites check
+app.get('/api/prerequisites', (_req, res) => {
+  res.json(checkPrerequisites())
 })
 
 // API routes

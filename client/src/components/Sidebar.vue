@@ -33,13 +33,13 @@ function isActive(path) {
 </script>
 
 <template>
-  <aside class="flex flex-col w-[200px] bg-[#12121e] border-r border-white/5 shrink-0">
+  <aside class="sidebar flex flex-col bg-[#12121e] border-r border-white/5 shrink-0">
     <!-- Logo -->
-    <div class="flex items-center gap-3 px-5 py-5">
-      <div class="flex items-center justify-center w-9 h-9 rounded-lg bg-gradient-to-br from-[var(--color-secondary)] to-[var(--color-primary)] font-bold text-white text-sm">
+    <div class="flex items-center gap-3 px-5 py-5 sidebar-header">
+      <div class="flex items-center justify-center w-9 h-9 rounded-lg bg-gradient-to-br from-[var(--color-secondary)] to-[var(--color-primary)] font-bold text-white text-sm shrink-0">
         SF
       </div>
-      <span class="text-[var(--text-primary)] font-semibold text-sm tracking-wide">Deploy Kit</span>
+      <span class="sidebar-label text-[var(--text-primary)] font-semibold text-sm tracking-wide">Deploy Kit</span>
     </div>
 
     <!-- Navigation -->
@@ -52,6 +52,7 @@ function isActive(path) {
         :class="isActive(item.path)
           ? 'bg-[var(--color-primary)]/15 text-[var(--color-primary)]'
           : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/5'"
+        :title="item.name"
       >
         <!-- Globe icon -->
         <svg v-if="item.icon === 'globe'" class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
@@ -73,13 +74,38 @@ function isActive(path) {
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
         </svg>
 
-        <span>{{ item.name }}</span>
+        <span class="sidebar-label">{{ item.name }}</span>
       </router-link>
     </nav>
 
     <!-- Bottom section -->
     <div class="px-5 py-4 border-t border-white/5">
-      <p class="text-[var(--text-muted)] text-xs">SF Deploy Kit</p>
+      <p class="sidebar-label text-[var(--text-muted)] text-xs">SF Deploy Kit</p>
     </div>
   </aside>
 </template>
+
+<style scoped>
+.sidebar {
+  width: 200px;
+  transition: width 0.2s ease;
+}
+
+.sidebar-label {
+  transition: opacity 0.2s ease;
+}
+
+@media (max-width: 1199px) {
+  .sidebar {
+    width: 64px;
+  }
+  .sidebar-label {
+    display: none;
+  }
+  .sidebar-header {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+}
+</style>
