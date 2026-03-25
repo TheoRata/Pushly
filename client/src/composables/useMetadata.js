@@ -10,15 +10,16 @@ export function useMetadata() {
   const recentOnly = ref(false)
 
   let debounceTimer = null
+  let currentOrgAlias = null
 
   /**
    * Fetches types from GET /api/metadata/:orgAlias/types
-   * Then PROGRESSIVELY loads components per type.
-   * Categories appear immediately, components load per-category with spinners.
+   * Then loads ALL categories in parallel using the batch endpoint.
    */
   async function loadMetadata(orgAlias) {
     loading.value = true
     categories.value = []
+    currentOrgAlias = orgAlias
 
     try {
       const { types } = await api.get(`/metadata/${encodeURIComponent(orgAlias)}/types`)
@@ -35,32 +36,48 @@ export function useMetadata() {
       categories.value = categoryList
       loading.value = false
 
-      // Progressively load components per category — all types within a category load in parallel
-      for (const category of categoryList) {
-        const typePromises = category.types.map(async (mt) => {
+      // Collect ALL type names across all categories for a single batch request
+      const allTypeNames = []
+      const typeToCategory = new Map()
+      for (const cat of categoryList) {
+        for (const mt of cat.types) {
           const typeName = mt.xmlName || mt
-          try {
-            const { components } = await api.get(
-              `/metadata/${encodeURIComponent(orgAlias)}/components?type=${encodeURIComponent(typeName)}`
-            )
-            return (components || []).map((c) => ({
-              fullName: c.fullName || c.name || c,
-              type: typeName,
-              lastModified: c.lastModifiedDate || c.createdDate || null,
-              lastModifiedBy: c.lastModifiedByName || null,
-            }))
-          } catch (err) {
-            console.warn(`Failed to load components for ${typeName}:`, err)
-            return []
+          allTypeNames.push(typeName)
+          if (!typeToCategory.has(typeName)) {
+            typeToCategory.set(typeName, [])
           }
-        })
-
-        const results = await Promise.all(typePromises)
-        category.components = results.flat().sort((a, b) => a.fullName.localeCompare(b.fullName))
-        category.loading = false
-        // Trigger reactivity
-        categories.value = [...categories.value]
+          typeToCategory.get(typeName).push(cat.name)
+        }
       }
+
+      // Single batch request for all types (server handles concurrency internally)
+      const { results } = await api.post(
+        `/metadata/${encodeURIComponent(orgAlias)}/batch-components`,
+        { types: allTypeNames }
+      )
+
+      // Distribute results back to categories
+      for (const cat of categoryList) {
+        const allComponents = []
+        for (const mt of cat.types) {
+          const typeName = mt.xmlName || mt
+          const components = results[typeName]
+          if (Array.isArray(components)) {
+            for (const c of components) {
+              allComponents.push({
+                fullName: c.fullName || c.name || c,
+                type: typeName,
+                lastModified: c.lastModifiedDate || c.createdDate || null,
+                lastModifiedBy: c.lastModifiedByName || null,
+              })
+            }
+          }
+        }
+        cat.components = allComponents.sort((a, b) => a.fullName.localeCompare(b.fullName))
+        cat.loading = false
+      }
+      // Trigger reactivity
+      categories.value = [...categories.value]
     } catch (err) {
       loading.value = false
       console.error('Failed to load metadata:', err)
@@ -70,7 +87,6 @@ export function useMetadata() {
 
   /**
    * Debounced (300ms) filter across all categories.
-   * Searches friendly name and API name.
    */
   function search(query) {
     clearTimeout(debounceTimer)
@@ -119,56 +135,13 @@ export function useMetadata() {
     })
   })
 
-  // Track the orgAlias for lazy loading deferred categories
-  let currentOrgAlias = null
-
-  const _origLoadMetadata = loadMetadata
-  async function loadMetadataWrapped(orgAlias) {
-    currentOrgAlias = orgAlias
-    return _origLoadMetadata(orgAlias)
-  }
-
-  /**
-   * Lazy-load a deferred category (e.g., "Other") when user expands it.
-   */
-  async function loadDeferredCategory(categoryName) {
-    const cat = categories.value.find((c) => c.name === categoryName && c.deferred)
-    if (!cat || !currentOrgAlias) return
-    cat.loading = true
-    cat.deferred = false
-    categories.value = [...categories.value]
-
-    const typePromises = cat.types.map(async (mt) => {
-      const typeName = mt.xmlName || mt
-      try {
-        const { components } = await api.get(
-          `/metadata/${encodeURIComponent(currentOrgAlias)}/components?type=${encodeURIComponent(typeName)}`
-        )
-        return (components || []).map((c) => ({
-          fullName: c.fullName || c.name || c,
-          type: typeName,
-          lastModified: c.lastModifiedDate || c.createdDate || null,
-          lastModifiedBy: c.lastModifiedByName || null,
-        }))
-      } catch {
-        return []
-      }
-    })
-
-    const results = await Promise.all(typePromises)
-    cat.components = results.flat().sort((a, b) => a.fullName.localeCompare(b.fullName))
-    cat.loading = false
-    categories.value = [...categories.value]
-  }
-
   return {
     categories,
     filteredCategories,
     loading,
     searchQuery,
     recentOnly,
-    loadMetadata: loadMetadataWrapped,
-    loadDeferredCategory,
+    loadMetadata,
     search,
     toggleRecentlyModified,
   }

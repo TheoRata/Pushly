@@ -12,6 +12,7 @@ import { cleanupOldWorkspaces } from './services/workspace.js'
 import { cleanupOldSnapshots } from './services/rollback.js'
 import { archiveOldRecords } from './services/history.js'
 import { registerClient, unregisterClient, getActiveOperations } from './services/operations.js'
+import { initCache } from './services/metadata-cache.js'
 
 import { checkPrerequisites } from './utils/prerequisites.js'
 import orgsRouter from './routes/orgs.js'
@@ -36,6 +37,9 @@ cleanupStaleLocks(dataDir)
 cleanupOldWorkspaces(30, baseDir)
 cleanupOldSnapshots(90, dataDir)
 archiveOldRecords(dataDir, 180)
+
+// Initialize metadata cache from disk
+initCache(baseDir)
 
 const app = express()
 app.use(express.json())

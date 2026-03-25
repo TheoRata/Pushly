@@ -1,11 +1,13 @@
 import { Router } from 'express'
 import { listMetadataTypes, listMetadata } from '../services/sf-cli.js'
+import { batchFetch } from '../utils/batch-fetch.js'
+import {
+  getCachedTypes, setCachedTypes,
+  getCachedComponents, setCachedComponents,
+  clearOrgCache, isCacheStale,
+} from '../services/metadata-cache.js'
 
 const router = Router()
-
-// In-memory cache: Map<orgAlias, { types, components, lastRefresh }>
-const cache = new Map()
-const CACHE_TTL_MS = 60 * 60 * 1000 // 1 hour
 
 const CATEGORY_MAP = {
   // Apex Code
@@ -115,36 +117,21 @@ const CATEGORY_MAP = {
   // Clean-up: any metadata type maps to its own name as category
 }
 
-function getOrgCache(orgAlias) {
-  const entry = cache.get(orgAlias)
-  if (!entry) return null
-  if (Date.now() - entry.lastRefresh > CACHE_TTL_MS) {
-    cache.delete(orgAlias)
-    return null
-  }
-  return entry
-}
-
-function setOrgCache(orgAlias, data) {
-  cache.set(orgAlias, { ...data, lastRefresh: Date.now() })
-}
 
 /**
  * GET /api/metadata/:orgAlias/types — list metadata types grouped by category
  */
 router.get('/:orgAlias/types', async (req, res) => {
   const { orgAlias } = req.params
+  const baseDir = req.app.locals.baseDir
 
   try {
-    const cached = getOrgCache(orgAlias)
-    let metadataTypes
+    let metadataTypes = getCachedTypes(orgAlias, baseDir)
 
-    if (cached?.types) {
-      metadataTypes = cached.types
-    } else {
+    if (!metadataTypes) {
       const result = await listMetadataTypes(orgAlias)
       metadataTypes = result.metadataObjects || result || []
-      setOrgCache(orgAlias, { ...getOrgCache(orgAlias), types: metadataTypes })
+      setCachedTypes(orgAlias, metadataTypes, baseDir)
     }
 
     // Group into categories
@@ -168,25 +155,22 @@ router.get('/:orgAlias/types', async (req, res) => {
 router.get('/:orgAlias/components', async (req, res) => {
   const { orgAlias } = req.params
   const { type } = req.query
+  const baseDir = req.app.locals.baseDir
 
   if (!type) {
     return res.status(400).json({ error: 'type query parameter is required' })
   }
 
   try {
-    const cached = getOrgCache(orgAlias)
-    const cacheKey = `components_${type}`
-
-    if (cached?.[cacheKey]) {
-      return res.json({ components: cached[cacheKey] })
+    const cached = getCachedComponents(orgAlias, type, baseDir)
+    if (cached) {
+      return res.json({ components: cached })
     }
 
     const components = await listMetadata(orgAlias, type)
     const componentList = Array.isArray(components) ? components : [components].filter(Boolean)
 
-    // Cache the result
-    const existing = getOrgCache(orgAlias) || {}
-    setOrgCache(orgAlias, { ...existing, [cacheKey]: componentList })
+    setCachedComponents(orgAlias, type, componentList, baseDir)
 
     res.json({ components: componentList })
   } catch (err) {
@@ -205,8 +189,9 @@ router.get('/:orgAlias/search', async (req, res) => {
     return res.status(400).json({ error: 'q query parameter is required' })
   }
 
-  const cached = getOrgCache(orgAlias)
-  if (!cached) {
+  const baseDir = req.app.locals.baseDir
+  const types = getCachedTypes(orgAlias, baseDir)
+  if (!types) {
     return res.json({ results: [], message: 'No cached metadata. Refresh first.' })
   }
 
@@ -214,11 +199,12 @@ router.get('/:orgAlias/search', async (req, res) => {
   const results = []
 
   // Search through all cached component lists
-  for (const [key, value] of Object.entries(cached)) {
-    if (!key.startsWith('components_') || !Array.isArray(value)) continue
-    const typeName = key.replace('components_', '')
+  for (const mt of types) {
+    const typeName = mt.xmlName || mt
+    const components = getCachedComponents(orgAlias, typeName, baseDir)
+    if (!Array.isArray(components)) continue
 
-    for (const component of value) {
+    for (const component of components) {
       const fullName = (component.fullName || component.name || '').toLowerCase()
       if (fullName.includes(query)) {
         results.push({ ...component, metadataType: typeName })
@@ -230,16 +216,81 @@ router.get('/:orgAlias/search', async (req, res) => {
 })
 
 /**
+ * POST /api/metadata/:orgAlias/batch-components
+ * Body: { types: ["Flow", "ApexClass", ...] }
+ * Response: { results: { "Flow": [...], "ApexClass": [...] } }
+ *
+ * Fetches multiple metadata types in a single request using controlled
+ * concurrency (max 5 parallel SF CLI calls). Checks the disk cache first
+ * and only fetches types that are not already cached.
+ */
+router.post('/:orgAlias/batch-components', async (req, res) => {
+  const { orgAlias } = req.params
+  const { types } = req.body
+
+  if (!Array.isArray(types) || types.length === 0) {
+    return res.status(400).json({ error: 'types must be a non-empty array' })
+  }
+
+  const baseDir = req.app.locals.baseDir
+  const output = {}
+
+  // Separate types into those already cached and those that need fetching.
+  const uncachedTypes = []
+
+  for (const type of types) {
+    const cached = getCachedComponents(orgAlias, type, baseDir)
+    if (cached) {
+      output[type] = cached
+    } else {
+      uncachedTypes.push(type)
+    }
+  }
+
+  if (uncachedTypes.length === 0) {
+    return res.json({ results: output })
+  }
+
+  // Build one task per uncached type
+  const tasks = uncachedTypes.map((type) => async () => {
+    const raw = await listMetadata(orgAlias, type)
+    const components = Array.isArray(raw) ? raw : [raw].filter(Boolean)
+    setCachedComponents(orgAlias, type, components, baseDir)
+    return { type, components }
+  })
+
+  try {
+    const settled = await batchFetch(tasks, 5)
+
+    for (const result of settled) {
+      if (result.status === 'fulfilled') {
+        const { type, components } = result.value
+        output[type] = components
+      } else {
+        // Surface the error under the type key so the client can react per-type
+        const type = uncachedTypes[settled.indexOf(result)]
+        output[type] = { error: result.reason?.message || 'Failed to fetch' }
+      }
+    }
+
+    res.json({ results: output })
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Batch fetch failed', details: err })
+  }
+})
+
+/**
  * POST /api/metadata/:orgAlias/refresh — clear cache and reload types
  */
 router.post('/:orgAlias/refresh', async (req, res) => {
   const { orgAlias } = req.params
+  const baseDir = req.app.locals.baseDir
 
   try {
-    cache.delete(orgAlias)
+    clearOrgCache(orgAlias, baseDir)
     const result = await listMetadataTypes(orgAlias)
     const metadataTypes = result.metadataObjects || result || []
-    setOrgCache(orgAlias, { types: metadataTypes })
+    setCachedTypes(orgAlias, metadataTypes, baseDir)
 
     // Group into categories for the response
     const grouped = {}
