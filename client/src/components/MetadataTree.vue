@@ -450,46 +450,56 @@ onMounted(() => {
             <span class="text-xs text-[var(--text-muted)]">No components found</span>
           </div>
 
-          <div
-            v-for="comp in category.components"
-            :key="`${comp.type}:${comp.fullName}`"
-            class="flex items-center gap-3 px-4 pl-11 py-2 hover:bg-white/[0.03] cursor-pointer transition-colors"
-            @click="toggleComponent(comp)"
+          <!-- Virtual scroller for large lists (>30 items) -->
+          <RecycleScroller
+            v-else-if="category.components.length > 30"
+            :items="category.components"
+            :item-size="36"
+            :key-field="null"
+            class="scroller"
+            :style="{ height: Math.min(category.components.length * 36, 360) + 'px' }"
           >
-            <!-- Checkbox -->
-            <span
-              class="w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors"
-              :class="
-                isSelected(comp)
-                  ? 'bg-[var(--color-primary)] border-[var(--color-primary)]'
-                  : 'border-white/20'
-              "
-            >
-              <svg
-                v-if="isSelected(comp)"
-                class="w-3 h-3 text-white"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                stroke-width="3"
+            <template #default="{ item: comp }">
+              <div
+                class="flex items-center gap-3 px-4 pl-11 h-[36px] hover:bg-white/[0.03] cursor-pointer transition-colors"
+                @click="toggleComponent(comp)"
               >
-                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-              </svg>
-            </span>
+                <span
+                  class="w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors"
+                  :class="isSelected(comp) ? 'bg-[var(--color-primary)] border-[var(--color-primary)]' : 'border-white/20'"
+                >
+                  <svg v-if="isSelected(comp)" class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                  </svg>
+                </span>
+                <span class="text-sm text-[var(--text-primary)] truncate flex-1 min-w-0" v-html="highlightMatch(comp.fullName)" />
+                <span class="text-[10px] font-mono text-[var(--text-muted)] bg-white/5 px-1.5 py-0.5 rounded shrink-0">{{ comp.type }}</span>
+                <span v-if="comp.lastModified" class="text-xs text-[var(--text-muted)] shrink-0 w-16 text-right">{{ formatDate(comp.lastModified) }}</span>
+              </div>
+            </template>
+          </RecycleScroller>
 
-            <!-- Component name with search highlight -->
-            <span class="text-sm text-[var(--text-primary)] truncate flex-1 min-w-0" v-html="highlightMatch(comp.fullName)" />
-
-            <!-- Type badge -->
-            <span class="text-[10px] font-mono text-[var(--text-muted)] bg-white/5 px-1.5 py-0.5 rounded shrink-0">
-              {{ comp.type }}
-            </span>
-
-            <!-- Last modified date -->
-            <span v-if="comp.lastModified" class="text-xs text-[var(--text-muted)] shrink-0 w-16 text-right">
-              {{ formatDate(comp.lastModified) }}
-            </span>
-          </div>
+          <!-- Plain list for small categories -->
+          <template v-else>
+            <div
+              v-for="comp in category.components"
+              :key="`${comp.type}:${comp.fullName}`"
+              class="flex items-center gap-3 px-4 pl-11 py-2 hover:bg-white/[0.03] cursor-pointer transition-colors"
+              @click="toggleComponent(comp)"
+            >
+              <span
+                class="w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors"
+                :class="isSelected(comp) ? 'bg-[var(--color-primary)] border-[var(--color-primary)]' : 'border-white/20'"
+              >
+                <svg v-if="isSelected(comp)" class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+              </span>
+              <span class="text-sm text-[var(--text-primary)] truncate flex-1 min-w-0" v-html="highlightMatch(comp.fullName)" />
+              <span class="text-[10px] font-mono text-[var(--text-muted)] bg-white/5 px-1.5 py-0.5 rounded shrink-0">{{ comp.type }}</span>
+              <span v-if="comp.lastModified" class="text-xs text-[var(--text-muted)] shrink-0 w-16 text-right">{{ formatDate(comp.lastModified) }}</span>
+            </div>
+          </template>
         </div>
       </div>
     </div>
