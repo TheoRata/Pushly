@@ -11,33 +11,49 @@ router.get('/', async (_req, res) => {
   try {
     const result = await listOrgs()
     // sf org list returns { other, nonScratchOrgs, scratchOrgs, sandboxes }
-    // Merge all, deduplicate by orgId
-    const allOrgs = [
-      ...(result.other || []),
-      ...(result.nonScratchOrgs || []),
-      ...(result.scratchOrgs || []),
-      ...(result.sandboxes || []),
+    // Tag each org with its source array, then merge and deduplicate
+    const tagged = [
+      ...(result.other || []).map((o) => ({ ...o, _source: 'other' })),
+      ...(result.nonScratchOrgs || []).map((o) => ({ ...o, _source: 'nonScratchOrgs' })),
+      ...(result.scratchOrgs || []).map((o) => ({ ...o, _source: 'scratchOrgs' })),
+      ...(result.sandboxes || []).map((o) => ({ ...o, _source: 'sandboxes' })),
     ]
     const seen = new Set()
-    const orgs = allOrgs.filter((org) => {
+    const orgs = tagged.filter((org) => {
       const key = org.orgId || org.username
       if (seen.has(key)) return false
       seen.add(key)
       return true
     })
 
+    // Determine org type from multiple signals:
+    // 1. If from sandboxes array → sandbox
+    // 2. If isSandbox === true → sandbox
+    // 3. If from scratchOrgs array → scratch
+    // 4. If instanceUrl contains '.sandbox.' or '--' (sandbox pattern) → sandbox
+    // 5. If instanceUrl contains 'trailblaze' or 'dev-ed' → developer edition
+    // 6. Otherwise → production
+    function resolveOrgType(org) {
+      if (org._source === 'sandboxes' || org.isSandbox === true) return 'sandbox'
+      if (org._source === 'scratchOrgs' || org.isScratch === true) return 'scratch'
+      const url = (org.instanceUrl || '').toLowerCase()
+      if (url.includes('.sandbox.')) return 'sandbox'
+      if (url.includes('trailblaze') || url.includes('dev-ed')) return 'developer'
+      return 'production'
+    }
+
     // Normalize fields for the frontend
+    // Spread raw org first, then override with normalized fields
     const enriched = orgs.map((org) => ({
+      ...org,
       alias: org.alias || org.username,
       username: org.username,
-      type: org.isSandbox ? 'sandbox' : 'production',
+      type: resolveOrgType(org),
       status: org.connectedStatus === 'Connected' ? 'connected' : 'expired',
       lastUsed: org.lastUsed,
       orgId: org.orgId,
       instanceUrl: org.instanceUrl,
       name: org.name,
-      // Pass through original fields too
-      ...org,
     }))
 
     res.json({ orgs: enriched })
@@ -51,15 +67,24 @@ router.get('/', async (_req, res) => {
  * Body: { alias, type } where type is 'production' | 'sandbox'
  */
 router.post('/connect', async (req, res) => {
-  const { alias, type } = req.body
+  const { alias, type, customDomain } = req.body
 
   if (!alias || !type) {
     return res.status(400).json({ error: 'alias and type are required' })
   }
 
-  const instanceUrl = type === 'sandbox'
-    ? 'https://test.salesforce.com'
-    : 'https://login.salesforce.com'
+  // Custom domain takes priority, then fall back to standard login URLs
+  let instanceUrl
+  if (customDomain && customDomain.trim()) {
+    // Normalize: add https:// if missing, strip trailing slashes
+    let domain = customDomain.trim()
+    if (!domain.startsWith('http')) domain = `https://${domain}`
+    instanceUrl = domain.replace(/\/+$/, '')
+  } else {
+    instanceUrl = type === 'sandbox'
+      ? 'https://test.salesforce.com'
+      : 'https://login.salesforce.com'
+  }
 
   try {
     // Start the login flow — sf CLI opens a browser for OAuth

@@ -1,8 +1,9 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, watch, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useApi } from '../composables/useApi'
 import { useOrgs } from '../composables/useOrgs'
+import { useWebSocket } from '../composables/useWebSocket'
 import WizardStepper from '../components/WizardStepper.vue'
 import OrgDropdown from '../components/OrgDropdown.vue'
 import MetadataTree from '../components/MetadataTree.vue'
@@ -10,8 +11,43 @@ import ProgressTracker from '../components/ProgressTracker.vue'
 import ConfirmModal from '../components/ConfirmModal.vue'
 
 const router = useRouter()
+const route = useRoute()
 const api = useApi()
 const { orgs, checkHealth } = useOrgs()
+const { on } = useWebSocket()
+
+const deployCompleted = ref(false)
+const deployFailed = ref(false)
+
+// Auto-select retrieve if coming from "Deploy These" on retrieve page
+onMounted(async () => {
+  if (route.query.from === 'retrieve' && route.query.retrieveId) {
+    sourceType.value = 'retrieve'
+    loadingRetrieves.value = true
+    try {
+      const data = await api.get('/retrieve')
+      const ops = data.operations || data || []
+      previousRetrieves.value = ops.filter((r) => r.status === 'success')
+      const match = previousRetrieves.value.find((r) => r.id === route.query.retrieveId)
+      if (match) {
+        selectedRetrieve.value = match
+        // Auto-advance to step 2 (components are pre-populated via the watch)
+        currentStep.value = 1
+      }
+    } catch {
+      previousRetrieves.value = []
+    } finally {
+      loadingRetrieves.value = false
+    }
+  }
+})
+
+on('operation:complete', (data) => {
+  if (data.operationId === operationId.value) {
+    deployCompleted.value = true
+    deployFailed.value = data.status === 'failed' || !!data.summary?.error
+  }
+})
 
 // Wizard state
 const currentStep = ref(0)
@@ -34,7 +70,9 @@ async function loadRetrieves() {
   loadingRetrieves.value = true
   try {
     const data = await api.get('/retrieve')
-    previousRetrieves.value = data || []
+    const ops = data.operations || data || []
+    // Only show successful retrieves
+    previousRetrieves.value = ops.filter((r) => r.status === 'success')
   } catch {
     previousRetrieves.value = []
   } finally {
@@ -128,23 +166,89 @@ const validationFailed = computed(() =>
   validationResults.value.some((r) => r.status === 'error' || r.status === 'failed')
 )
 
+const validationAction = ref('')
+const validationFailures = ref([])
+
+// Track the workspace path for "from org" deploys
+const activeWorkspacePath = ref('')
+
 async function runValidation() {
   validating.value = true
   validationResults.value = []
   validationError.value = ''
+  validationAction.value = ''
+  validationFailures.value = []
   try {
+    let workspacePath = ''
+
+    if (sourceType.value === 'retrieve' && selectedRetrieve.value) {
+      workspacePath = selectedRetrieve.value.workspacePath || selectedRetrieve.value.path
+    } else if (sourceType.value === 'org') {
+      // For "from org" deploys, first retrieve the components into a workspace
+      const retrieveResult = await api.post('/retrieve', {
+        orgAlias: sourceOrg.value,
+        components: selectedComponents.value,
+        mode: 'cherry-pick',
+        name: `Deploy prep from ${sourceOrg.value}`,
+      })
+      // Poll until the retrieve completes
+      let attempts = 0
+      while (attempts < 60) {
+        await new Promise((r) => setTimeout(r, 2000))
+        const status = await api.get(`/retrieve/${retrieveResult.operationId}/status`)
+        if (status.status === 'completed' || status.status === 'success') break
+        if (status.status === 'failed') throw new Error(status.record?.error || 'Retrieve failed')
+        attempts++
+      }
+      // Get the workspace path from history
+      const history = await api.get('/retrieve')
+      const ops = history.operations || []
+      const match = ops.find((r) => r.id === retrieveResult.operationId)
+      workspacePath = match?.workspacePath || ''
+    }
+
+    if (!workspacePath) {
+      throw new Error('No workspace available. Please retrieve components first.')
+    }
+
+    activeWorkspacePath.value = workspacePath
+
     const payload = {
       targetOrg: targetOrg.value,
+      workspacePath,
       components: selectedComponents.value,
     }
-    // If from a previous retrieve, include workspace path
-    if (sourceType.value === 'retrieve' && selectedRetrieve.value) {
-      payload.workspacePath = selectedRetrieve.value.workspacePath || selectedRetrieve.value.path
-    }
     const data = await api.post('/deploy/validate', payload)
-    validationResults.value = data.results || []
+    // Parse SF CLI result into component-level validation results
+    const result = data.result || {}
+    const details = result.details || {}
+    const successes = Array.isArray(details.componentSuccesses) ? details.componentSuccesses : []
+    const failures = Array.isArray(details.componentFailures) ? details.componentFailures : []
+    validationResults.value = [
+      ...successes.filter((c) => c.fullName !== 'package.xml').map((c) => ({
+        name: c.fullName,
+        type: c.componentType || '',
+        status: 'success',
+      })),
+      ...failures.map((c) => ({
+        name: c.fullName,
+        type: c.componentType || '',
+        status: 'failed',
+        problem: c.problem || '',
+        line: c.lineNumber || null,
+      })),
+    ]
+    // If no component details but status is success, create a summary entry
+    if (validationResults.value.length === 0 && data.status === 'success') {
+      validationResults.value = [{ name: 'All components', type: '', status: 'success' }]
+    }
   } catch (err) {
     validationError.value = err.message || 'Validation failed'
+    // Extract structured error details from the API response
+    if (err.detail) {
+      validationAction.value = err.detail.action || ''
+      validationFailures.value = err.detail.failures || []
+    }
   } finally {
     validating.value = false
   }
@@ -197,6 +301,8 @@ async function confirmDeploy() {
     }
     if (sourceType.value === 'retrieve' && selectedRetrieve.value) {
       payload.workspacePath = selectedRetrieve.value.workspacePath || selectedRetrieve.value.path
+    } else if (activeWorkspacePath.value) {
+      payload.workspacePath = activeWorkspacePath.value
     }
     const data = await api.post('/deploy', payload)
     operationId.value = data.operationId
@@ -221,17 +327,22 @@ async function retryFailed() {
   }
 }
 
+const rollbackStatus = ref('') // '' | 'running' | 'success' | 'error'
+const rollbackError = ref('')
+const rollbackOperationId = ref(null)
+
 async function rollbackDeploy() {
   if (!operationId.value) return
-  deploying.value = true
-  deployStatus.value = 'running'
-  deployError.value = ''
+  rollbackStatus.value = 'running'
+  rollbackError.value = ''
+  rollbackOperationId.value = null
   try {
     const data = await api.post(`/deploy/${operationId.value}/rollback`)
-    operationId.value = data.operationId || operationId.value
+    rollbackOperationId.value = data.operationId || null
+    rollbackStatus.value = 'success'
   } catch (err) {
-    deployError.value = err.message || 'Rollback failed'
-    deployStatus.value = 'error'
+    rollbackError.value = err.message || 'Rollback failed'
+    rollbackStatus.value = 'error'
   }
 }
 
@@ -251,6 +362,12 @@ function resetWizard() {
   operationId.value = null
   deployStatus.value = ''
   deployError.value = ''
+  deployCompleted.value = false
+  deployFailed.value = false
+  rollbackStatus.value = ''
+  rollbackError.value = ''
+  rollbackOperationId.value = null
+  activeWorkspacePath.value = ''
 }
 
 function goToHistory() {
@@ -378,11 +495,13 @@ function formatDate(dateStr) {
           >
             <div class="min-w-0">
               <div class="text-sm font-medium text-[var(--text-primary)] truncate">
-                {{ ret.orgAlias || ret.org || 'Unknown org' }}
+                {{ ret.name || ret.sourceOrg || 'Unnamed retrieve' }}
               </div>
               <div class="text-xs text-[var(--text-muted)] mt-0.5">
+                <span v-if="ret.name" class="text-[var(--text-secondary)]">{{ ret.sourceOrg }}</span>
+                <span v-if="ret.name"> &middot; </span>
                 {{ (ret.components || []).length }} components
-                <span v-if="ret.createdAt || ret.timestamp"> &middot; {{ formatDate(ret.createdAt || ret.timestamp) }}</span>
+                <span v-if="ret.startedAt || ret.createdAt"> &middot; {{ formatDate(ret.startedAt || ret.createdAt) }}</span>
               </div>
             </div>
             <div v-if="selectedRetrieve === ret" class="shrink-0 ml-3">
@@ -580,9 +699,33 @@ function formatDate(dateStr) {
       <!-- Validation error -->
       <div v-else-if="validationError" class="space-y-4">
         <div class="p-4 rounded-lg bg-[var(--color-error)]/10 border border-[var(--color-error)]/20">
-          <p class="text-sm text-[var(--color-error)] font-medium">Validation error</p>
-          <p class="text-xs text-[var(--color-error)]/80 mt-1">{{ validationError }}</p>
+          <p class="text-sm text-[var(--color-error)] font-medium">Validation Failed</p>
+          <p class="text-sm text-[var(--text-secondary)] mt-2">{{ validationError }}</p>
+          <p v-if="validationAction" class="text-xs text-[var(--text-muted)] mt-2">
+            <span class="font-medium text-[var(--color-warning)]">Suggested fix:</span> {{ validationAction }}
+          </p>
         </div>
+
+        <!-- Component-level failures -->
+        <div v-if="validationFailures.length > 0" class="rounded-lg bg-[var(--bg-primary)] border border-white/5 overflow-hidden">
+          <div class="px-4 py-2.5 border-b border-white/5">
+            <p class="text-xs font-medium text-[var(--text-muted)]">{{ validationFailures.length }} component{{ validationFailures.length !== 1 ? 's' : '' }} failed</p>
+          </div>
+          <div class="max-h-64 overflow-y-auto divide-y divide-white/5">
+            <div v-for="(f, i) in validationFailures" :key="i" class="px-4 py-3">
+              <div class="flex items-center gap-2 mb-1">
+                <svg class="w-3.5 h-3.5 text-[var(--color-error)] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                <span class="text-xs font-mono text-[var(--text-muted)]">{{ f.type }}</span>
+                <span class="text-sm font-medium text-[var(--text-primary)]">{{ f.name }}</span>
+                <span v-if="f.line" class="text-xs text-[var(--text-muted)]">line {{ f.line }}</span>
+              </div>
+              <p class="text-xs text-[var(--color-error)]/80 pl-5.5">{{ f.problem }}</p>
+            </div>
+          </div>
+        </div>
+
         <div class="flex gap-3">
           <button
             class="px-4 py-2 text-sm font-medium rounded-lg border border-white/10 text-[var(--text-secondary)] hover:bg-white/5 transition-colors cursor-pointer"
@@ -647,14 +790,17 @@ function formatDate(dateStr) {
               </svg>
 
               <div class="flex-1 min-w-0">
-                <span class="text-sm text-[var(--text-primary)] truncate block">
-                  {{ result.component || result.name }}
-                </span>
+                <div class="flex items-center gap-2">
+                  <span v-if="result.type" class="text-xs font-mono text-[var(--text-muted)]">{{ result.type }}</span>
+                  <span class="text-sm text-[var(--text-primary)] truncate">
+                    {{ result.component || result.name }}
+                  </span>
+                </div>
                 <span
-                  v-if="result.message && (result.status === 'error' || result.status === 'failed')"
+                  v-if="(result.message || result.problem) && (result.status === 'error' || result.status === 'failed')"
                   class="text-xs text-[var(--color-error)]/80 block mt-0.5"
                 >
-                  {{ result.message }}
+                  {{ result.message || result.problem }}
                 </span>
               </div>
             </div>
@@ -763,10 +909,25 @@ function formatDate(dateStr) {
 
       <!-- Progress tracker -->
       <div v-if="operationId">
-        <ProgressTracker :operation-id="operationId" />
+        <ProgressTracker :operation-id="rollbackOperationId || operationId" />
 
-        <!-- Post-deploy actions (show after completion) -->
-        <div class="flex flex-wrap gap-3 mt-6">
+        <!-- Rollback status -->
+        <div v-if="rollbackStatus === 'running'" class="mt-4 flex items-center gap-2 text-sm text-[var(--text-muted)]">
+          <svg class="animate-spin w-4 h-4 text-[var(--color-primary)]" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          Rolling back...
+        </div>
+
+        <div v-if="rollbackStatus === 'error'" class="mt-4 p-4 rounded-lg bg-[var(--color-error)]/10 border border-[var(--color-error)]/20">
+          <p class="text-sm text-[var(--color-error)] font-medium">Rollback not available</p>
+          <p class="text-xs text-[var(--text-secondary)] mt-1">{{ rollbackError }}</p>
+          <p class="text-xs text-[var(--text-muted)] mt-2">To undo this deploy, retrieve the previous version of the components from the source org and deploy them to the target.</p>
+        </div>
+
+        <!-- Post-deploy actions (show only after deploy completes) -->
+        <div v-if="deployCompleted && rollbackStatus !== 'running'" class="flex flex-wrap gap-3 mt-6">
           <button
             class="px-5 py-2.5 text-sm font-semibold rounded-lg bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary)]/80 transition-colors cursor-pointer"
             @click="resetWizard"
@@ -779,18 +940,20 @@ function formatDate(dateStr) {
           >
             View History
           </button>
-          <button
-            class="px-4 py-2.5 text-sm font-medium rounded-lg border border-[var(--color-warning)]/30 text-[var(--color-warning)] hover:bg-[var(--color-warning)]/10 transition-colors cursor-pointer"
-            @click="retryFailed"
-          >
-            Retry Failed Only
-          </button>
-          <button
-            class="px-4 py-2.5 text-sm font-medium rounded-lg border border-[var(--color-error)]/30 text-[var(--color-error)] hover:bg-[var(--color-error)]/10 transition-colors cursor-pointer"
-            @click="rollbackDeploy"
-          >
-            Rollback
-          </button>
+          <template v-if="deployFailed && rollbackStatus === ''">
+            <button
+              class="px-4 py-2.5 text-sm font-medium rounded-lg border border-[var(--color-warning)]/30 text-[var(--color-warning)] hover:bg-[var(--color-warning)]/10 transition-colors cursor-pointer"
+              @click="retryFailed"
+            >
+              Retry Failed Only
+            </button>
+            <button
+              class="px-4 py-2.5 text-sm font-medium rounded-lg border border-[var(--color-error)]/30 text-[var(--color-error)] hover:bg-[var(--color-error)]/10 transition-colors cursor-pointer"
+              @click="rollbackDeploy"
+            >
+              Rollback
+            </button>
+          </template>
         </div>
       </div>
     </div>

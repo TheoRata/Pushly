@@ -20,7 +20,7 @@ async function request(method, url, body) {
     } catch {
       detail = { message: res.statusText }
     }
-    const err = new Error(detail.message || `Request failed: ${res.status}`)
+    const err = new Error(detail.message || detail.error || `Request failed: ${res.status}`)
     err.status = res.status
     err.detail = detail
     throw err

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onUnmounted } from 'vue'
+import { ref, computed, onUnmounted } from 'vue'
 import { useOrgs } from '../composables/useOrgs'
 
 const emit = defineEmits(['connected', 'close'])
@@ -8,10 +8,18 @@ const { connectOrg, checkHealth } = useOrgs()
 
 const orgType = ref('sandbox')
 const alias = ref('')
+const customDomain = ref('')
+const useCustomDomain = ref(false)
 const step = ref('form') // form | waiting | success | error
 const errorMessage = ref('')
 let pollTimer = null
 let timeoutTimer = null
+
+const domainPlaceholder = computed(() =>
+  orgType.value === 'sandbox'
+    ? 'mycompany--sandbox.sandbox.my.salesforce.com'
+    : 'mycompany.my.salesforce.com'
+)
 
 function close() {
   clearTimers()
@@ -32,7 +40,11 @@ async function startLogin() {
   errorMessage.value = ''
 
   try {
-    await connectOrg(alias.value.trim(), orgType.value)
+    await connectOrg(
+      alias.value.trim(),
+      orgType.value,
+      useCustomDomain.value ? customDomain.value.trim() : ''
+    )
   } catch (err) {
     step.value = 'error'
     errorMessage.value = err.message || 'Failed to initiate connection'
@@ -43,7 +55,7 @@ async function startLogin() {
   pollTimer = setInterval(async () => {
     try {
       const health = await checkHealth(alias.value.trim())
-      if (health && health.connected) {
+      if (health && health.status === 'connected') {
         clearTimers()
         step.value = 'success'
         emit('connected', alias.value.trim())
@@ -122,13 +134,44 @@ onUnmounted(clearTimers)
               class="w-full px-3 py-2.5 rounded-lg bg-[var(--bg-primary)] border border-white/10 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--color-primary)]/50 transition-colors"
             />
 
+            <!-- Custom domain toggle -->
+            <div class="mt-4">
+              <label class="flex items-center gap-2 cursor-pointer group">
+                <input
+                  v-model="useCustomDomain"
+                  type="checkbox"
+                  class="w-4 h-4 rounded border-white/20 bg-[var(--bg-primary)] text-[var(--color-primary)] focus:ring-[var(--color-primary)]/50 cursor-pointer accent-[var(--color-primary)]"
+                />
+                <span class="text-sm text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors">
+                  Use custom domain (My Domain)
+                </span>
+              </label>
+            </div>
+
+            <!-- Custom domain input -->
+            <div
+              v-if="useCustomDomain"
+              class="mt-3"
+            >
+              <label class="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Custom Domain</label>
+              <input
+                v-model="customDomain"
+                type="text"
+                :placeholder="domainPlaceholder"
+                class="w-full px-3 py-2.5 rounded-lg bg-[var(--bg-primary)] border border-white/10 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--color-primary)]/50 transition-colors"
+              />
+              <p class="mt-1.5 text-xs text-[var(--text-muted)]">
+                Your Salesforce My Domain URL. Found in Setup > My Domain.
+              </p>
+            </div>
+
             <p class="mt-4 text-xs text-[var(--text-muted)] leading-relaxed">
               You'll be redirected to Salesforce to log in. This app will be granted permission to read and deploy metadata on your behalf.
             </p>
 
             <button
               class="mt-5 w-full py-2.5 rounded-lg bg-[var(--color-primary)] text-white text-sm font-semibold hover:bg-[var(--color-primary)]/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-              :disabled="!alias.trim()"
+              :disabled="!alias.trim() || (useCustomDomain && !customDomain.trim())"
               @click="startLogin"
             >
               Log in to Salesforce

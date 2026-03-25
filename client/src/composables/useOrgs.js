@@ -19,8 +19,8 @@ export function useOrgs() {
     }
   }
 
-  async function connectOrg(alias, type) {
-    const data = await api.post('/orgs/connect', { alias, type })
+  async function connectOrg(alias, type, customDomain = '') {
+    const data = await api.post('/orgs/connect', { alias, type, customDomain })
     return data
   }
 

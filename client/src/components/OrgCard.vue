@@ -19,7 +19,19 @@ function statusColor(status) {
 
 function typeBadgeClass(type) {
   if (type === 'production') return 'bg-[var(--color-error)]/15 text-[var(--color-error)]'
+  if (type === 'developer') return 'bg-[var(--color-success)]/15 text-[var(--color-success)]'
+  if (type === 'scratch') return 'bg-[var(--color-warning)]/15 text-[var(--color-warning)]'
   return 'bg-[var(--color-primary)]/15 text-[var(--color-primary)]'
+}
+
+function typeLabel(type) {
+  switch (type) {
+    case 'production': return 'Production'
+    case 'sandbox': return 'Sandbox'
+    case 'developer': return 'Developer'
+    case 'scratch': return 'Scratch'
+    default: return type
+  }
 }
 
 function formatTime(dateStr) {
@@ -56,7 +68,7 @@ function formatTime(dateStr) {
       <span
         :class="['text-xs font-medium px-2 py-0.5 rounded-md shrink-0', typeBadgeClass(org.type)]"
       >
-        {{ org.type === 'production' ? 'Production' : 'Sandbox' }}
+        {{ typeLabel(org.type) }}
       </span>
     </div>
 

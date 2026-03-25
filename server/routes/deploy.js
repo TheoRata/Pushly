@@ -34,10 +34,31 @@ router.post('/validate', async (req, res) => {
     const result = await validateDeploy(targetOrg, resolvedPath)
     res.json({ status: 'success', result })
   } catch (err) {
+    // sfCommand rejects with { code, plain, action, raw, stderr, result }
+    const errorMsg = err.plain || err.message || err.raw || 'Validation failed'
+    const action = err.action || ''
+    const parsedResult = err.result || {}
+    // err.result is the full parsed JSON; component failures are at result.details.componentFailures
+    const innerResult = parsedResult.result || parsedResult
+    const innerDetails = innerResult.details || {}
+
+    // Extract component-level failures from the SF CLI result
+    const componentFailures = innerDetails.componentFailures || []
+    const failureList = (Array.isArray(componentFailures) ? componentFailures : [componentFailures])
+      .filter(Boolean)
+      .map((f) => ({
+        type: f.componentType || '',
+        name: f.fullName || '',
+        problem: f.problem || '',
+        line: f.lineNumber || null,
+      }))
+
     res.status(422).json({
       status: 'validation_failed',
-      error: err.message || 'Validation failed',
-      details: err.result || err,
+      error: errorMsg,
+      action,
+      failures: failureList,
+      details: innerResult,
     })
   }
 })
@@ -97,20 +118,60 @@ router.post('/', async (req, res) => {
     })
 
     const result = await deployMetadata(targetOrg, resolvedPath)
+
+    // Extract component details from SF CLI result
+    const details = result?.details || {}
+    const successes = Array.isArray(details.componentSuccesses) ? details.componentSuccesses : []
+    const failures = Array.isArray(details.componentFailures) ? details.componentFailures : []
+    const componentList = [
+      ...successes.filter((c) => c.fullName !== 'package.xml').map((c) => ({
+        name: c.fullName,
+        type: c.componentType || '',
+        status: 'succeeded',
+      })),
+      ...failures.map((c) => ({
+        name: c.fullName,
+        type: c.componentType || '',
+        status: 'failed',
+        problem: c.problem || '',
+      })),
+    ]
+
     record.status = 'success'
     record.completedAt = new Date().toISOString()
     record.result = result
     writeRecord(record, dataDir)
-    completeOperation(operationId, { components: components || [], result })
+    completeOperation(operationId, {
+      components: components || [],
+      result,
+      componentList,
+      message: `Deployed ${successes.length} components to ${targetOrg}`,
+    })
   } catch (err) {
+    // sfCommand rejects with { code, plain, action, raw, stderr, result }
+    const errorMsg = err.plain || err.message || err.raw || 'Deploy failed'
+    const action = err.action || ''
+
+    // Extract component-level failures
+    const cfRaw = err.result?.details?.componentFailures || []
+    const componentFailures = (Array.isArray(cfRaw) ? cfRaw : [cfRaw]).filter(Boolean)
+    const componentList = componentFailures.map((c) => ({
+      name: c.fullName || '',
+      type: c.componentType || '',
+      status: 'failed',
+      problem: c.problem || '',
+    }))
+
     record.status = 'failed'
     record.completedAt = new Date().toISOString()
-    record.error = err.message || String(err)
-    record.failedComponents = err.result?.details?.componentFailures || []
+    record.error = errorMsg
+    record.failedComponents = componentFailures
     writeRecord(record, dataDir)
     completeOperation(operationId, {
-      error: record.error,
-      failedComponents: record.failedComponents,
+      error: errorMsg,
+      action,
+      componentList,
+      failedComponents: componentFailures,
     })
   } finally {
     releaseLock(targetOrg, dataDir)
@@ -186,7 +247,7 @@ router.post('/:id/retry-failed', async (req, res) => {
   } catch (err) {
     record.status = 'failed'
     record.completedAt = new Date().toISOString()
-    record.error = err.message || String(err)
+    record.error = err.plain || err.message || err.raw || 'Operation failed'
     writeRecord(record, dataDir)
     completeOperation(retryId, { error: record.error })
   } finally {
@@ -209,6 +270,17 @@ router.post('/:id/rollback', async (req, res) => {
   const snapshotPath = getRollbackPath(id, dataDir)
   if (!snapshotPath) {
     return res.status(404).json({ error: 'No rollback snapshot found for this deployment' })
+  }
+
+  // Check if the snapshot has an actual SFDX project to deploy
+  const fs = await import('node:fs')
+  const path = await import('node:path')
+  const sfdxProject = path.join(snapshotPath, 'sfdx-project.json')
+  const forceApp = path.join(snapshotPath, 'force-app')
+  if (!fs.existsSync(sfdxProject) || !fs.existsSync(forceApp)) {
+    return res.status(422).json({
+      error: 'Rollback is not available for this deployment. The pre-deploy snapshot does not contain source files. To undo this deploy, retrieve the previous version of the components from the source org and deploy them again.',
+    })
   }
 
   const user = resolveUser(dataDir)
@@ -258,7 +330,7 @@ router.post('/:id/rollback', async (req, res) => {
   } catch (err) {
     record.status = 'failed'
     record.completedAt = new Date().toISOString()
-    record.error = err.message || String(err)
+    record.error = err.plain || err.message || err.raw || 'Operation failed'
     writeRecord(record, dataDir)
     completeOperation(rollbackId, { error: record.error })
   } finally {

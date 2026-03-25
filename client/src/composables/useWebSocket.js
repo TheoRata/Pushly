@@ -37,16 +37,17 @@ function connect() {
   }
 
   socket.onmessage = (event) => {
-    let data
+    let msg
     try {
-      data = JSON.parse(event.data)
+      msg = JSON.parse(event.data)
     } catch {
       return
     }
 
-    const type = data.event || data.type
+    const type = msg.event || msg.type
     if (type && listeners[type]) {
-      listeners[type].forEach((cb) => cb(data))
+      // Pass the inner data payload to callbacks, not the full envelope
+      listeners[type].forEach((cb) => cb(msg.data || msg))
     }
   }
 }

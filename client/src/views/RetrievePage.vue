@@ -25,6 +25,7 @@ const currentStep = ref(0)
 const selectedOrg = ref('')
 const selectedComponents = ref([])
 const retrieveMode = ref('cherry-pick') // 'all' | 'cherry-pick'
+const retrieveName = ref('')
 const operationId = ref(null)
 const retrieveStatus = ref(null) // null | 'running' | 'success' | 'error'
 const retrieveError = ref('')
@@ -83,6 +84,7 @@ async function startRetrieve() {
     const payload = {
       orgAlias: selectedOrg.value,
       mode: retrieveMode.value,
+      name: retrieveName.value.trim() || undefined,
     }
     if (retrieveMode.value === 'cherry-pick') {
       payload.components = selectedComponents.value
@@ -99,9 +101,13 @@ async function startRetrieve() {
 // Listen for WebSocket completion/error events
 on('operation:complete', (data) => {
   if (data.operationId !== operationId.value) return
-  retrieveStatus.value = 'success'
-  const count = data.components?.filter((c) => c.status === 'succeeded').length
-  retrievedCount.value = count || selectedComponents.value.length || 0
+  if (data.status === 'failed') {
+    retrieveStatus.value = 'error'
+    retrieveError.value = data.summary?.error || 'Retrieve operation failed'
+  } else {
+    retrieveStatus.value = 'success'
+    retrievedCount.value = data.summary?.componentList?.length || selectedComponents.value.length || 0
+  }
 })
 
 on('operation:error', (data) => {
@@ -112,7 +118,7 @@ on('operation:error', (data) => {
 
 function deployThese() {
   const query = { from: 'retrieve' }
-  if (workspaceId.value) query.workspaceId = workspaceId.value
+  if (operationId.value) query.retrieveId = operationId.value
   router.push({ path: '/deploy', query })
 }
 
@@ -121,6 +127,7 @@ function resetWizard() {
   selectedOrg.value = ''
   selectedComponents.value = []
   retrieveMode.value = 'cherry-pick'
+  retrieveName.value = ''
   operationId.value = null
   retrieveStatus.value = null
   retrieveError.value = ''
@@ -265,7 +272,7 @@ function tryAgain() {
           </div>
 
           <!-- Cherry pick tree -->
-          <div v-else class="rounded-lg border border-white/5 overflow-hidden" style="max-height: 480px;">
+          <div v-else class="rounded-lg border border-white/5" style="height: 500px;">
             <MetadataTree
               :org-alias="selectedOrg"
               :model-value="selectedComponents"
@@ -304,6 +311,18 @@ function tryAgain() {
           <p class="text-sm text-[var(--text-muted)] mb-5">
             Confirm the details before starting the retrieve
           </p>
+
+          <!-- Retrieve name -->
+          <div class="mb-5">
+            <label class="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Retrieve Name</label>
+            <input
+              v-model="retrieveName"
+              type="text"
+              placeholder="e.g. Flow updates for March release"
+              class="w-full px-3 py-2.5 rounded-lg bg-[var(--bg-primary)] border border-white/10 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--color-primary)]/50 transition-colors"
+            />
+            <p class="mt-1 text-xs text-[var(--text-muted)]">Give this retrieve a name so you can find it later when deploying.</p>
+          </div>
 
           <!-- Summary card -->
           <div class="rounded-lg bg-[var(--bg-primary)] border border-white/5 p-5 space-y-4">
@@ -373,7 +392,7 @@ function tryAgain() {
       <div v-else-if="currentStep === 3" key="step-3">
         <!-- Progress tracker -->
         <div v-if="operationId" class="mb-6">
-          <ProgressTracker :operation-id="operationId" />
+          <ProgressTracker :operation-id="operationId" operation-type="retrieve" />
         </div>
 
         <!-- Error (no operationId - request itself failed) -->

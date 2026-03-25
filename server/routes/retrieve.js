@@ -31,7 +31,7 @@ router.get('/', (req, res) => {
  * Body: { orgAlias, components, mode }
  */
 router.post('/', async (req, res) => {
-  const { orgAlias, components, mode } = req.body
+  const { orgAlias, components, mode, name } = req.body
   const dataDir = req.app.locals.dataDir
   const baseDir = req.app.locals.baseDir
 
@@ -50,6 +50,7 @@ router.post('/', async (req, res) => {
     const record = {
       id: operationId,
       type: 'retrieve',
+      name: name || '',
       user,
       sourceOrg: orgAlias,
       components,
@@ -74,12 +75,37 @@ router.post('/', async (req, res) => {
         message: `Starting retrieve from ${orgAlias}`,
       })
 
+      // Send progress for each component being retrieved
+      for (const comp of components) {
+        const name = typeof comp === 'string' ? comp : `${comp.type}:${comp.fullName}`
+        updateOperation(operationId, {
+          message: `Retrieving ${name}...`,
+          component: name,
+        })
+      }
+
       const result = await retrieveMetadata(orgAlias, components, workspace.path)
+
+      // Build component list from the result for the frontend
+      const fileProps = result?.fileProperties || []
+      const componentList = fileProps
+        .filter((f) => f.fullName !== 'unpackaged/package.xml' && f.type !== 'Package')
+        .map((f) => ({
+          name: f.fullName,
+          type: f.type || '',
+          status: 'succeeded',
+        }))
+
       record.status = 'success'
       record.completedAt = new Date().toISOString()
       record.result = result
       writeRecord(record, dataDir)
-      completeOperation(operationId, { components, result })
+      completeOperation(operationId, {
+        components,
+        result,
+        componentList,
+        message: `Retrieved ${componentList.length} components from ${orgAlias}`,
+      })
     } catch (err) {
       record.status = 'failed'
       record.completedAt = new Date().toISOString()

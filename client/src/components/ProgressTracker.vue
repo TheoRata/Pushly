@@ -7,6 +7,10 @@ const props = defineProps({
     type: String,
     required: true,
   },
+  operationType: {
+    type: String,
+    default: 'deploy', // 'deploy' | 'retrieve'
+  },
 })
 
 const { on } = useWebSocket()
@@ -21,9 +25,14 @@ const showDetails = ref(false)
 const elapsedSeconds = ref(0)
 let elapsedTimer = null
 
+const isRetrieve = computed(() => props.operationType === 'retrieve')
+const actionLabel = computed(() => isRetrieve.value ? 'Retrieval' : 'Deployment')
+const actionVerb = computed(() => isRetrieve.value ? 'Retrieving' : 'Deploying')
+const actionVerbPast = computed(() => isRetrieve.value ? 'retrieved' : 'deployed')
+
 const completedCount = computed(() => components.value.filter((c) => c.status === 'succeeded').length)
 const totalCount = computed(() => components.value.length)
-const currentComponent = computed(() => components.value.find((c) => c.status === 'deploying'))
+const currentComponent = computed(() => components.value.find((c) => c.status === 'in_progress'))
 
 const elapsedDisplay = computed(() => {
   const m = Math.floor(elapsedSeconds.value / 60)
@@ -45,9 +54,23 @@ function handleComplete(data) {
   if (data.operationId !== props.operationId) return
   clearInterval(elapsedTimer)
   progress.value = 100
-  status.value = data.partial ? 'partial' : 'success'
+  status.value = data.status === 'failed' ? 'error' : (data.partial ? 'partial' : 'success')
   message.value = data.message || 'Operation completed successfully'
-  if (data.components) components.value = data.components
+  if (data.summary?.error) {
+    errorMessage.value = typeof data.summary.error === 'string'
+      ? data.summary.error
+      : data.summary.error.plain || data.summary.error.message || JSON.stringify(data.summary.error)
+    status.value = 'error'
+  }
+  if (data.summary?.action) {
+    logs.value.push(`Suggested fix: ${data.summary.action}`)
+  }
+  if (data.summary?.componentList) {
+    components.value = data.summary.componentList
+  }
+  if (data.summary?.message) {
+    logs.value.push(data.summary.message)
+  }
 }
 
 function handleError(data) {
@@ -76,7 +99,7 @@ function statusIcon(s) {
   switch (s) {
     case 'succeeded': return 'check'
     case 'failed': return 'x'
-    case 'deploying': return 'spinner'
+    case 'in_progress': return 'spinner'
     default: return 'pending'
   }
 }
@@ -89,19 +112,19 @@ function statusIcon(s) {
       <div class="flex items-center justify-between mb-3">
         <span class="text-sm font-medium text-[var(--text-primary)]">
           <template v-if="status === 'running' && currentComponent">
-            Deploying component {{ completedCount + 1 }} of {{ totalCount }}...
+            {{ actionVerb }} component {{ completedCount + 1 }} of {{ totalCount }}...
           </template>
           <template v-else-if="status === 'success'">
-            Deployment complete
+            {{ actionLabel }} complete
           </template>
           <template v-else-if="status === 'error'">
-            Deployment failed
+            {{ actionLabel }} failed
           </template>
           <template v-else-if="status === 'partial'">
-            Deployment partially succeeded
+            {{ actionLabel }} partially succeeded
           </template>
           <template v-else>
-            Deploying...
+            {{ actionVerb }}...
           </template>
         </span>
         <span class="text-xs text-[var(--text-muted)]">{{ elapsedDisplay }}</span>
@@ -127,7 +150,7 @@ function statusIcon(s) {
       class="px-5 py-3 bg-[var(--color-success)]/10 border-b border-[var(--color-success)]/20"
     >
       <p class="text-sm text-[var(--color-success)] font-medium">
-        All {{ totalCount }} components deployed successfully.
+        {{ totalCount > 0 ? `All ${totalCount} components ${actionVerbPast} successfully.` : `${actionLabel} completed successfully.` }}
       </p>
     </div>
     <div
@@ -141,7 +164,7 @@ function statusIcon(s) {
       class="px-5 py-3 bg-[var(--color-warning)]/10 border-b border-[var(--color-warning)]/20"
     >
       <p class="text-sm text-[var(--color-warning)] font-medium">
-        {{ completedCount }} of {{ totalCount }} components deployed. Some components failed.
+        {{ completedCount }} of {{ totalCount }} components {{ actionVerbPast }}. Some components failed.
       </p>
     </div>
 
@@ -173,6 +196,7 @@ function statusIcon(s) {
           <div class="w-4 h-4 rounded-full border-2 border-[var(--text-muted)]/30 shrink-0" />
         </template>
 
+        <span class="text-xs font-mono text-[var(--text-muted)] shrink-0">{{ comp.type }}</span>
         <span
           class="text-sm truncate"
           :class="comp.status === 'failed' ? 'text-[var(--color-error)]' : 'text-[var(--text-secondary)]'"

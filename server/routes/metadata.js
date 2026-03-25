@@ -8,39 +8,111 @@ const cache = new Map()
 const CACHE_TTL_MS = 60 * 60 * 1000 // 1 hour
 
 const CATEGORY_MAP = {
+  // Apex Code
+  ApexClass: 'Apex Code',
+  ApexTrigger: 'Apex Code',
+  ApexComponent: 'Apex Code',
+  ApexPage: 'Apex Code',
+  ApexTestSuite: 'Apex Code',
   // Automation
   Flow: 'Automation',
+  FlowDefinition: 'Automation',
   WorkflowRule: 'Automation',
+  WorkflowAlert: 'Automation',
+  WorkflowFieldUpdate: 'Automation',
+  WorkflowTask: 'Automation',
+  WorkflowOutboundMessage: 'Automation',
+  ProcessFlowMigration: 'Automation',
   // Objects & Fields
   CustomObject: 'Objects & Fields',
   CustomField: 'Objects & Fields',
   RecordType: 'Objects & Fields',
   ValidationRule: 'Objects & Fields',
   FieldSet: 'Objects & Fields',
+  BusinessProcess: 'Objects & Fields',
+  WebLink: 'Objects & Fields',
+  CustomIndex: 'Objects & Fields',
+  ListView: 'Objects & Fields',
   // Layouts & Pages
   Layout: 'Layouts & Pages',
   FlexiPage: 'Layouts & Pages',
   CompactLayout: 'Layouts & Pages',
   HomePageLayout: 'Layouts & Pages',
+  HomePageComponent: 'Layouts & Pages',
+  CustomPageWebLink: 'Layouts & Pages',
+  // Lightning Components
+  LightningComponentBundle: 'Lightning Components',
+  AuraDefinitionBundle: 'Lightning Components',
   // Profiles & Permissions
   PermissionSet: 'Profiles & Permissions',
   PermissionSetGroup: 'Profiles & Permissions',
   Profile: 'Profiles & Permissions',
-  // Apex Code
-  ApexClass: 'Apex Code',
-  ApexTrigger: 'Apex Code',
-  ApexComponent: 'Apex Code',
-  ApexPage: 'Apex Code',
-  // Lightning Components
-  LightningComponentBundle: 'Lightning Components',
-  AuraDefinitionBundle: 'Lightning Components',
+  MutingPermissionSet: 'Profiles & Permissions',
+  // Sharing & Security
+  SharingRules: 'Sharing & Security',
+  SharingCriteriaRule: 'Sharing & Security',
+  SharingOwnerRule: 'Sharing & Security',
+  CustomPermission: 'Sharing & Security',
   // Reports & Dashboards
   Report: 'Reports & Dashboards',
   Dashboard: 'Reports & Dashboards',
   ReportType: 'Reports & Dashboards',
+  AnalyticSnapshot: 'Reports & Dashboards',
   // Email & Templates
   EmailTemplate: 'Email & Templates',
   Letterhead: 'Email & Templates',
+  // Tabs & Apps
+  CustomTab: 'Tabs & Apps',
+  CustomApplication: 'Tabs & Apps',
+  ConnectedApp: 'Tabs & Apps',
+  AppMenu: 'Tabs & Apps',
+  // Custom Labels & Translations
+  CustomLabel: 'Custom Labels & Translations',
+  CustomLabels: 'Custom Labels & Translations',
+  Translations: 'Custom Labels & Translations',
+  GlobalValueSet: 'Custom Labels & Translations',
+  StandardValueSet: 'Custom Labels & Translations',
+  GlobalValueSetTranslation: 'Custom Labels & Translations',
+  // Custom Metadata & Settings
+  CustomMetadata: 'Custom Metadata & Settings',
+  CustomSetting: 'Custom Metadata & Settings',
+  CustomObject__mdt: 'Custom Metadata & Settings',
+  // Static Resources & Files
+  StaticResource: 'Static Resources & Files',
+  ContentAsset: 'Static Resources & Files',
+  Document: 'Static Resources & Files',
+  // Platform Events & Messaging
+  PlatformEventChannel: 'Platform Events',
+  PlatformEventChannelMember: 'Platform Events',
+  CustomNotificationType: 'Platform Events',
+  // Quick Actions
+  QuickAction: 'Quick Actions',
+  // Data Integration
+  ExternalDataSource: 'Data Integration',
+  NamedCredential: 'Data Integration',
+  ExternalServiceRegistration: 'Data Integration',
+  RemoteSiteSetting: 'Data Integration',
+  // Sites & Communities
+  CustomSite: 'Sites & Communities',
+  Network: 'Sites & Communities',
+  ExperienceBundle: 'Sites & Communities',
+  // Path & Guidance
+  PathAssistant: 'Path & Guidance',
+  // Duplicate Management
+  DuplicateRule: 'Duplicate Management',
+  MatchingRules: 'Duplicate Management',
+  MatchingRule: 'Duplicate Management',
+  // Assignment & Escalation
+  AssignmentRules: 'Assignment & Escalation',
+  AssignmentRule: 'Assignment & Escalation',
+  AutoResponseRules: 'Assignment & Escalation',
+  AutoResponseRule: 'Assignment & Escalation',
+  EscalationRules: 'Assignment & Escalation',
+  EscalationRule: 'Assignment & Escalation',
+  // Queues & Groups
+  Queue: 'Queues & Groups',
+  Group: 'Queues & Groups',
+  // Clean-up: any metadata type maps to its own name as category
 }
 
 function getOrgCache(orgAlias) {
@@ -79,7 +151,7 @@ router.get('/:orgAlias/types', async (req, res) => {
     const grouped = {}
     for (const mt of metadataTypes) {
       const typeName = mt.xmlName || mt
-      const category = CATEGORY_MAP[typeName] || 'Other'
+      const category = CATEGORY_MAP[typeName] || typeName
       if (!grouped[category]) grouped[category] = []
       grouped[category].push(mt)
     }
@@ -173,7 +245,7 @@ router.post('/:orgAlias/refresh', async (req, res) => {
     const grouped = {}
     for (const mt of metadataTypes) {
       const typeName = mt.xmlName || mt
-      const category = CATEGORY_MAP[typeName] || 'Other'
+      const category = CATEGORY_MAP[typeName] || typeName
       if (!grouped[category]) grouped[category] = []
       grouped[category].push(mt)
     }

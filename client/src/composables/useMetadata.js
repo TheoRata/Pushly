@@ -31,34 +31,32 @@ export function useMetadata() {
         loading: true,
         expanded: false,
       }))
-
+      categoryList.sort((a, b) => a.name.localeCompare(b.name))
       categories.value = categoryList
       loading.value = false
 
-      // Progressively load components per category
+      // Progressively load components per category — all types within a category load in parallel
       for (const category of categoryList) {
-        const allComponents = []
-
-        for (const mt of category.types) {
+        const typePromises = category.types.map(async (mt) => {
           const typeName = mt.xmlName || mt
           try {
             const { components } = await api.get(
               `/metadata/${encodeURIComponent(orgAlias)}/components?type=${encodeURIComponent(typeName)}`
             )
-            for (const c of components) {
-              allComponents.push({
-                fullName: c.fullName || c.name || c,
-                type: typeName,
-                lastModified: c.lastModifiedDate || c.createdDate || null,
-                lastModifiedBy: c.lastModifiedByName || null,
-              })
-            }
+            return (components || []).map((c) => ({
+              fullName: c.fullName || c.name || c,
+              type: typeName,
+              lastModified: c.lastModifiedDate || c.createdDate || null,
+              lastModifiedBy: c.lastModifiedByName || null,
+            }))
           } catch (err) {
             console.warn(`Failed to load components for ${typeName}:`, err)
+            return []
           }
-        }
+        })
 
-        category.components = allComponents
+        const results = await Promise.all(typePromises)
+        category.components = results.flat().sort((a, b) => a.fullName.localeCompare(b.fullName))
         category.loading = false
         // Trigger reactivity
         categories.value = [...categories.value]
@@ -121,13 +119,56 @@ export function useMetadata() {
     })
   })
 
+  // Track the orgAlias for lazy loading deferred categories
+  let currentOrgAlias = null
+
+  const _origLoadMetadata = loadMetadata
+  async function loadMetadataWrapped(orgAlias) {
+    currentOrgAlias = orgAlias
+    return _origLoadMetadata(orgAlias)
+  }
+
+  /**
+   * Lazy-load a deferred category (e.g., "Other") when user expands it.
+   */
+  async function loadDeferredCategory(categoryName) {
+    const cat = categories.value.find((c) => c.name === categoryName && c.deferred)
+    if (!cat || !currentOrgAlias) return
+    cat.loading = true
+    cat.deferred = false
+    categories.value = [...categories.value]
+
+    const typePromises = cat.types.map(async (mt) => {
+      const typeName = mt.xmlName || mt
+      try {
+        const { components } = await api.get(
+          `/metadata/${encodeURIComponent(currentOrgAlias)}/components?type=${encodeURIComponent(typeName)}`
+        )
+        return (components || []).map((c) => ({
+          fullName: c.fullName || c.name || c,
+          type: typeName,
+          lastModified: c.lastModifiedDate || c.createdDate || null,
+          lastModifiedBy: c.lastModifiedByName || null,
+        }))
+      } catch {
+        return []
+      }
+    })
+
+    const results = await Promise.all(typePromises)
+    cat.components = results.flat().sort((a, b) => a.fullName.localeCompare(b.fullName))
+    cat.loading = false
+    categories.value = [...categories.value]
+  }
+
   return {
     categories,
     filteredCategories,
     loading,
     searchQuery,
     recentOnly,
-    loadMetadata,
+    loadMetadata: loadMetadataWrapped,
+    loadDeferredCategory,
     search,
     toggleRecentlyModified,
   }

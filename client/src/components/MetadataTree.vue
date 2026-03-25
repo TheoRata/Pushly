@@ -164,9 +164,34 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-// Handle search input
+// Handle search input — auto-expand matching categories
 function onSearchInput(e) {
-  search(e.target.value)
+  const q = e.target.value
+  search(q)
+  // Auto-expand all categories when searching, collapse when cleared
+  if (q.trim()) {
+    // Small delay to let filteredCategories update
+    setTimeout(() => {
+      filteredCategories.value.forEach((cat) => {
+        if (cat.components.length > 0) {
+          expandedCategories.value.add(cat.name)
+        }
+      })
+      expandedCategories.value = new Set(expandedCategories.value)
+    }, 350) // slightly after the 300ms debounce
+  }
+}
+
+// Highlight matching text in component names
+function highlightMatch(text) {
+  const q = searchQuery.value
+  if (!q) return text
+  const idx = text.toLowerCase().indexOf(q.toLowerCase())
+  if (idx === -1) return text
+  const before = text.slice(0, idx)
+  const match = text.slice(idx, idx + q.length)
+  const after = text.slice(idx + q.length)
+  return `${before}<mark class="bg-[var(--color-primary)]/30 text-[var(--color-primary)] rounded px-0.5">${match}</mark>${after}`
 }
 
 // Load metadata and bundles on mount
@@ -336,7 +361,7 @@ onMounted(() => {
       <div v-for="category in filteredCategories" :key="category.name" class="border-b border-white/5 last:border-b-0">
         <!-- Category header -->
         <button
-          class="w-full flex items-center gap-2 px-4 py-2.5 bg-[var(--bg-surface)] hover:bg-[var(--bg-surface)]/80 transition-colors cursor-pointer text-left"
+          class="w-full flex items-center gap-2 px-4 py-2.5 bg-[var(--bg-surface)] hover:bg-[var(--bg-surface)]/80 transition-colors cursor-pointer text-left sticky top-0 z-10"
           @click="toggleExpand(category)"
         >
           <!-- Expand chevron -->
@@ -428,7 +453,7 @@ onMounted(() => {
           <div
             v-for="comp in category.components"
             :key="`${comp.type}:${comp.fullName}`"
-            class="flex items-center gap-3 px-4 pl-11 py-1.5 hover:bg-white/[0.03] cursor-pointer transition-colors"
+            class="flex items-center gap-3 px-4 pl-11 py-2 hover:bg-white/[0.03] cursor-pointer transition-colors"
             @click="toggleComponent(comp)"
           >
             <!-- Checkbox -->
@@ -452,18 +477,16 @@ onMounted(() => {
               </svg>
             </span>
 
-            <!-- Component info -->
-            <div class="flex-1 min-w-0 flex items-center gap-2">
-              <span class="text-sm text-[var(--text-primary)] truncate">
-                {{ comp.fullName }}
-              </span>
-              <span class="text-xs text-[var(--text-muted)] font-mono shrink-0">
-                {{ comp.type }}
-              </span>
-            </div>
+            <!-- Component name with search highlight -->
+            <span class="text-sm text-[var(--text-primary)] truncate flex-1 min-w-0" v-html="highlightMatch(comp.fullName)" />
+
+            <!-- Type badge -->
+            <span class="text-[10px] font-mono text-[var(--text-muted)] bg-white/5 px-1.5 py-0.5 rounded shrink-0">
+              {{ comp.type }}
+            </span>
 
             <!-- Last modified date -->
-            <span v-if="comp.lastModified" class="text-xs text-[var(--text-muted)] shrink-0">
+            <span v-if="comp.lastModified" class="text-xs text-[var(--text-muted)] shrink-0 w-16 text-right">
               {{ formatDate(comp.lastModified) }}
             </span>
           </div>

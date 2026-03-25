@@ -59,8 +59,24 @@ export async function sfCommand(args, options = {}) {
       if (code === 0) {
         resolve(parsed.result !== undefined ? parsed.result : parsed)
       } else {
-        // Salesforce CLI error responses have a message property
-        const errorMsg = parsed.message || parsed.name || stderr || `sf exited with code ${code}`
+        // Extract component failures for deploy/validate errors
+        const result = parsed.result || {}
+        const details = result.details || {}
+        let cfRaw = details.componentFailures || []
+        if (!Array.isArray(cfRaw)) cfRaw = [cfRaw]
+        cfRaw = cfRaw.filter(Boolean)
+
+        // Build a human-readable error message
+        let errorMsg = parsed.message || parsed.name || ''
+        if (!errorMsg && cfRaw.length > 0) {
+          const problems = cfRaw.slice(0, 3).map((f) =>
+            `${f.componentType || ''}:${f.fullName || ''} — ${f.problem || ''}`
+          )
+          errorMsg = `${cfRaw.length} component error${cfRaw.length !== 1 ? 's' : ''}:\n${problems.join('\n')}`
+          if (cfRaw.length > 3) errorMsg += `\n...and ${cfRaw.length - 3} more`
+        }
+        if (!errorMsg) errorMsg = stderr || `sf exited with code ${code}`
+
         reject({ ...translateError(errorMsg), stderr, result: parsed })
       }
     })
@@ -141,10 +157,12 @@ export async function listMetadata(orgAlias, metadataType) {
 export async function retrieveMetadata(orgAlias, components, workspacePath) {
   const args = ['project', 'retrieve', 'start', '--target-org', orgAlias]
   if (Array.isArray(components) && components.length > 0) {
-    args.push('--metadata', components.join(','))
-  }
-  if (workspacePath) {
-    args.push('--output-dir', workspacePath)
+    // Components come as { type, fullName } objects — format as Type:Name for SF CLI
+    // Each component needs its own --metadata flag (repeatable flag, not comma-separated)
+    for (const c of components) {
+      const name = typeof c === 'string' ? c : `${c.type}:${c.fullName}`
+      args.push('--metadata', name)
+    }
   }
   return sfCommand(args, { cwd: workspacePath })
 }
