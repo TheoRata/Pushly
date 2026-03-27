@@ -4,7 +4,12 @@ import { useRouter } from 'vue-router'
 import { useApi } from '../composables/useApi'
 import { useOrgs } from '../composables/useOrgs'
 import { useWebSocket } from '../composables/useWebSocket'
-import WizardStepper from '../components/WizardStepper.vue'
+import GlassPillStepper from '../components/glass/GlassPillStepper.vue'
+import GlassCard from '../components/glass/GlassCard.vue'
+import GlassButton from '../components/glass/GlassButton.vue'
+import GlassInput from '../components/glass/GlassInput.vue'
+import GlassBadge from '../components/glass/GlassBadge.vue'
+import GlassToggle from '../components/glass/GlassToggle.vue'
 import OrgDropdown from '../components/OrgDropdown.vue'
 import MetadataTree from '../components/MetadataTree.vue'
 import ProgressTracker from '../components/ProgressTracker.vue'
@@ -14,14 +19,22 @@ const api = useApi()
 const { orgs, checkHealth } = useOrgs()
 const { on } = useWebSocket()
 
+// Key-based steps for GlassPillStepper
 const steps = [
-  { label: 'Source Org' },
-  { label: 'Select Components' },
-  { label: 'Review' },
-  { label: 'Retrieve' },
+  { label: 'Source', key: 'source' },
+  { label: 'Components', key: 'components' },
+  { label: 'Review', key: 'review' },
+  { label: 'Execute', key: 'execute' },
 ]
 
-const currentStep = ref(0)
+const stepKeys = steps.map((s) => s.key)
+
+// Numeric index kept for all existing logic — keys are derived from it
+const currentStepIndex = ref(0)
+const completedSteps = ref([])
+
+const currentStepKey = computed(() => stepKeys[currentStepIndex.value])
+
 const selectedOrg = ref('')
 const selectedComponents = ref([])
 const retrieveMode = ref('cherry-pick') // 'all' | 'cherry-pick'
@@ -33,6 +46,12 @@ const retrievedCount = ref(0)
 const workspaceId = ref(null)
 const authChecking = ref(false)
 const authOk = ref(false)
+
+// Mode toggle options for GlassToggle
+const modeOptions = [
+  { label: 'All Changes', value: 'all' },
+  { label: 'Cherry Pick', value: 'cherry-pick' },
+]
 
 // Computed helpers
 const selectedOrgObj = computed(() => orgs.value.find((o) => o.alias === selectedOrg.value))
@@ -62,17 +81,29 @@ async function onOrgSelected(alias) {
 
 // Navigation
 function next() {
-  if (currentStep.value < steps.length - 1) {
-    if (currentStep.value === 2) {
+  if (currentStepIndex.value < steps.length - 1) {
+    if (currentStepIndex.value === 2) {
       startRetrieve()
     }
-    currentStep.value++
+    // Mark current step as completed before advancing
+    const key = stepKeys[currentStepIndex.value]
+    if (!completedSteps.value.includes(key)) {
+      completedSteps.value = [...completedSteps.value, key]
+    }
+    currentStepIndex.value++
   }
 }
 
 function back() {
-  if (currentStep.value > 0) {
-    currentStep.value--
+  if (currentStepIndex.value > 0) {
+    currentStepIndex.value--
+  }
+}
+
+function onStepClick(key) {
+  const idx = stepKeys.indexOf(key)
+  if (idx !== -1) {
+    currentStepIndex.value = idx
   }
 }
 
@@ -123,7 +154,8 @@ function deployThese() {
 }
 
 function resetWizard() {
-  currentStep.value = 0
+  currentStepIndex.value = 0
+  completedSteps.value = []
   selectedOrg.value = ''
   selectedComponents.value = []
   retrieveMode.value = 'cherry-pick'
@@ -140,21 +172,26 @@ function tryAgain() {
   retrieveStatus.value = null
   operationId.value = null
   retrieveError.value = ''
-  currentStep.value = 1
+  currentStepIndex.value = 1
 }
 </script>
 
 <template>
-  <div class="max-w-4xl mx-auto px-4 py-8">
+  <div class="max-w-5xl mx-auto px-6 py-8">
     <!-- Page header -->
     <div class="mb-8">
       <h1 class="text-2xl font-bold text-[var(--text-primary)]">Retrieve Components</h1>
       <p class="mt-1 text-sm text-[var(--text-secondary)]">Pull metadata from a Salesforce org</p>
     </div>
 
-    <!-- Wizard stepper -->
-    <div class="mb-8 px-4">
-      <WizardStepper :steps="steps" :current-step="currentStep" />
+    <!-- Wizard pill stepper -->
+    <div class="mb-8">
+      <GlassPillStepper
+        :steps="steps"
+        :current-step="currentStepKey"
+        :completed-steps="completedSteps"
+        @step-click="onStepClick"
+      />
     </div>
 
     <!-- Step content with transitions -->
@@ -168,8 +205,8 @@ function tryAgain() {
       mode="out-in"
     >
       <!-- ==================== STEP 1: Source Org ==================== -->
-      <div v-if="currentStep === 0" key="step-0">
-        <div class="rounded-xl bg-[var(--bg-surface)] border border-white/5 p-6">
+      <div v-if="currentStepIndex === 0" key="step-0">
+        <GlassCard padding="lg">
           <h2 class="text-lg font-semibold text-[var(--text-primary)] mb-1">Source Org</h2>
           <p class="text-sm text-[var(--text-muted)] mb-5">
             Choose the Salesforce org to retrieve metadata from
@@ -192,72 +229,44 @@ function tryAgain() {
             <span class="text-sm text-[var(--text-muted)]">Checking connection...</span>
           </div>
           <div v-else-if="selectedOrg && authOk" class="mt-4 flex items-center gap-2">
-            <svg class="w-4 h-4 text-[var(--color-success)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-            </svg>
-            <span class="text-sm text-[var(--color-success)]">Connected</span>
+            <GlassBadge variant="success">Connected</GlassBadge>
           </div>
           <div v-else-if="selectedOrg && !authChecking && !authOk" class="mt-4 flex items-center gap-2">
-            <svg class="w-4 h-4 text-[var(--color-error)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-            <span class="text-sm text-[var(--color-error)]">Connection failed. Please reconnect this org.</span>
+            <GlassBadge variant="error">Connection failed. Please reconnect this org.</GlassBadge>
           </div>
 
           <!-- Next button -->
           <div class="mt-6 flex justify-end">
-            <button
-              class="px-5 py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer"
-              :class="
-                canProceedStep1
-                  ? 'bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary)]/80 shadow-lg shadow-[var(--color-primary)]/25'
-                  : 'bg-white/5 text-[var(--text-muted)] cursor-not-allowed'
-              "
+            <GlassButton
+              variant="primary"
               :disabled="!canProceedStep1"
               @click="next"
             >
               Next
-            </button>
+            </GlassButton>
           </div>
-        </div>
+        </GlassCard>
       </div>
 
       <!-- ==================== STEP 2: Select Components ==================== -->
-      <div v-else-if="currentStep === 1" key="step-1">
-        <div class="rounded-xl bg-[var(--bg-surface)] border border-white/5 p-6">
+      <div v-else-if="currentStepIndex === 1" key="step-1">
+        <GlassCard padding="lg">
           <h2 class="text-lg font-semibold text-[var(--text-primary)] mb-1">Select Components</h2>
           <p class="text-sm text-[var(--text-muted)] mb-5">
             Choose which metadata to retrieve from {{ selectedOrgObj?.alias || selectedOrg }}
           </p>
 
           <!-- Mode toggle -->
-          <div class="flex gap-2 mb-5">
-            <button
-              class="px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer border"
-              :class="
-                retrieveMode === 'all'
-                  ? 'bg-[var(--color-primary)]/20 border-[var(--color-primary)]/50 text-[var(--color-primary)]'
-                  : 'bg-[var(--bg-primary)] border-white/10 text-[var(--text-secondary)] hover:bg-white/5'
-              "
-              @click="retrieveMode = 'all'"
-            >
-              All Changes
-            </button>
-            <button
-              class="px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer border"
-              :class="
-                retrieveMode === 'cherry-pick'
-                  ? 'bg-[var(--color-primary)]/20 border-[var(--color-primary)]/50 text-[var(--color-primary)]'
-                  : 'bg-[var(--bg-primary)] border-white/10 text-[var(--text-secondary)] hover:bg-white/5'
-              "
-              @click="retrieveMode = 'cherry-pick'"
-            >
-              Cherry Pick
-            </button>
+          <div class="mb-5">
+            <GlassToggle
+              :options="modeOptions"
+              :model-value="retrieveMode"
+              @update:model-value="retrieveMode = $event"
+            />
           </div>
 
           <!-- All changes info -->
-          <div v-if="retrieveMode === 'all'" class="rounded-lg bg-[var(--color-primary)]/5 border border-[var(--color-primary)]/20 p-4">
+          <div v-if="retrieveMode === 'all'" class="rounded-[var(--radius-md)] bg-[var(--color-primary-bg)] border border-[var(--color-primary-border)] p-4">
             <div class="flex items-start gap-3">
               <svg class="w-5 h-5 text-[var(--color-primary)] shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
@@ -272,7 +281,7 @@ function tryAgain() {
           </div>
 
           <!-- Cherry pick tree -->
-          <div v-else class="rounded-lg border border-white/5" style="height: 500px;">
+          <div v-else class="rounded-[var(--radius-md)] border border-[var(--glass-border)]" style="height: 500px;">
             <MetadataTree
               :org-alias="selectedOrg"
               :model-value="selectedComponents"
@@ -282,31 +291,21 @@ function tryAgain() {
 
           <!-- Navigation -->
           <div class="mt-6 flex justify-between">
-            <button
-              class="px-5 py-2.5 rounded-lg text-sm font-medium bg-white/5 text-[var(--text-secondary)] hover:bg-white/10 transition-colors cursor-pointer"
-              @click="back"
-            >
-              Back
-            </button>
-            <button
-              class="px-5 py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer"
-              :class="
-                canProceedStep2
-                  ? 'bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary)]/80 shadow-lg shadow-[var(--color-primary)]/25'
-                  : 'bg-white/5 text-[var(--text-muted)] cursor-not-allowed'
-              "
+            <GlassButton variant="ghost" @click="back">Back</GlassButton>
+            <GlassButton
+              variant="primary"
               :disabled="!canProceedStep2"
               @click="next"
             >
               Next
-            </button>
+            </GlassButton>
           </div>
-        </div>
+        </GlassCard>
       </div>
 
       <!-- ==================== STEP 3: Review ==================== -->
-      <div v-else-if="currentStep === 2" key="step-2">
-        <div class="rounded-xl bg-[var(--bg-surface)] border border-white/5 p-6">
+      <div v-else-if="currentStepIndex === 2" key="step-2">
+        <GlassCard padding="lg">
           <h2 class="text-lg font-semibold text-[var(--text-primary)] mb-1">Review</h2>
           <p class="text-sm text-[var(--text-muted)] mb-5">
             Confirm the details before starting the retrieve
@@ -314,91 +313,82 @@ function tryAgain() {
 
           <!-- Retrieve name -->
           <div class="mb-5">
-            <label class="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Retrieve Name</label>
-            <input
+            <GlassInput
               v-model="retrieveName"
+              label="Retrieve Name"
               type="text"
               placeholder="e.g. Flow updates for March release"
-              class="w-full px-3 py-2.5 rounded-lg bg-[var(--bg-primary)] border border-white/10 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--color-primary)]/50 transition-colors"
             />
-            <p class="mt-1 text-xs text-[var(--text-muted)]">Give this retrieve a name so you can find it later when deploying.</p>
+            <p class="mt-1.5 text-xs text-[var(--text-muted)]">Give this retrieve a name so you can find it later when deploying.</p>
           </div>
 
           <!-- Summary card -->
-          <div class="rounded-lg bg-[var(--bg-primary)] border border-white/5 p-5 space-y-4">
-            <!-- Source org -->
-            <div class="flex items-center justify-between">
-              <span class="text-sm text-[var(--text-muted)]">Source Org</span>
-              <span class="text-sm font-medium text-[var(--text-primary)]">
-                {{ selectedOrgObj?.alias || selectedOrg }}
-              </span>
-            </div>
-
-            <div class="h-px bg-white/5" />
-
-            <!-- Mode -->
-            <div class="flex items-center justify-between">
-              <span class="text-sm text-[var(--text-muted)]">Mode</span>
-              <span class="text-sm font-medium text-[var(--text-primary)]">
-                {{ retrieveMode === 'all' ? 'All Metadata' : 'Cherry Pick' }}
-              </span>
-            </div>
-
-            <div class="h-px bg-white/5" />
-
-            <!-- Component count -->
-            <div class="flex items-center justify-between">
-              <span class="text-sm text-[var(--text-muted)]">Components</span>
-              <span class="text-sm font-medium text-[var(--color-primary)]">
-                {{ componentCount }}
-              </span>
-            </div>
-
-            <!-- Selected components list (cherry-pick only) -->
-            <template v-if="retrieveMode === 'cherry-pick' && selectedComponents.length > 0">
-              <div class="h-px bg-white/5" />
-              <div class="max-h-48 overflow-y-auto rounded-md bg-[var(--bg-surface)] border border-white/5 p-3">
-                <div
-                  v-for="comp in selectedComponents"
-                  :key="`${comp.type}:${comp.fullName}`"
-                  class="flex items-center gap-2 py-1"
-                >
-                  <span class="text-xs font-mono text-[var(--text-muted)] shrink-0 w-32 truncate">{{ comp.type }}</span>
-                  <span class="text-sm text-[var(--text-primary)] truncate">{{ comp.fullName }}</span>
-                </div>
+          <GlassCard padding="md">
+            <div class="space-y-4">
+              <!-- Source org -->
+              <div class="flex items-center justify-between">
+                <span class="text-sm text-[var(--text-muted)]">Source Org</span>
+                <span class="text-sm font-medium text-[var(--text-primary)]">
+                  {{ selectedOrgObj?.alias || selectedOrg }}
+                </span>
               </div>
-            </template>
-          </div>
+
+              <div class="h-px bg-[var(--glass-border)]" />
+
+              <!-- Mode -->
+              <div class="flex items-center justify-between">
+                <span class="text-sm text-[var(--text-muted)]">Mode</span>
+                <span class="text-sm font-medium text-[var(--text-primary)]">
+                  {{ retrieveMode === 'all' ? 'All Metadata' : 'Cherry Pick' }}
+                </span>
+              </div>
+
+              <div class="h-px bg-[var(--glass-border)]" />
+
+              <!-- Component count -->
+              <div class="flex items-center justify-between">
+                <span class="text-sm text-[var(--text-muted)]">Components</span>
+                <span class="text-sm font-medium text-[var(--color-primary)]">
+                  {{ componentCount }}
+                </span>
+              </div>
+
+              <!-- Selected components list (cherry-pick only) -->
+              <template v-if="retrieveMode === 'cherry-pick' && selectedComponents.length > 0">
+                <div class="h-px bg-[var(--glass-border)]" />
+                <div class="max-h-48 overflow-y-auto rounded-[var(--radius-sm)] bg-[var(--glass-bg)] border border-[var(--glass-border)] p-3">
+                  <div
+                    v-for="comp in selectedComponents"
+                    :key="`${comp.type}:${comp.fullName}`"
+                    class="flex items-center gap-2 py-1"
+                  >
+                    <span class="text-xs font-mono text-[var(--text-muted)] shrink-0 w-32 truncate">{{ comp.type }}</span>
+                    <span class="text-sm text-[var(--text-primary)] truncate">{{ comp.fullName }}</span>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </GlassCard>
 
           <!-- Navigation -->
           <div class="mt-6 flex justify-between">
-            <button
-              class="px-5 py-2.5 rounded-lg text-sm font-medium bg-white/5 text-[var(--text-secondary)] hover:bg-white/10 transition-colors cursor-pointer"
-              @click="back"
-            >
-              Back
-            </button>
-            <button
-              class="px-5 py-2.5 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-600/25 cursor-pointer"
-              @click="next"
-            >
-              Start Retrieve
-            </button>
+            <GlassButton variant="ghost" @click="back">Back</GlassButton>
+            <GlassButton variant="primary" @click="next">Start Retrieve</GlassButton>
           </div>
-        </div>
+        </GlassCard>
       </div>
 
       <!-- ==================== STEP 4: Retrieve Progress ==================== -->
-      <div v-else-if="currentStep === 3" key="step-3">
+      <div v-else-if="currentStepIndex === 3" key="step-3">
         <!-- Progress tracker -->
         <div v-if="operationId" class="mb-6">
           <ProgressTracker :operation-id="operationId" operation-type="retrieve" />
         </div>
 
         <!-- Error (no operationId - request itself failed) -->
-        <div
+        <GlassCard
           v-if="retrieveStatus === 'error' && !operationId"
-          class="rounded-xl bg-[var(--bg-surface)] border border-[var(--color-error)]/20 p-6"
+          padding="lg"
         >
           <div class="flex items-start gap-3">
             <svg class="w-6 h-6 text-[var(--color-error)] shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -410,21 +400,16 @@ function tryAgain() {
             </div>
           </div>
           <div class="mt-5">
-            <button
-              class="px-5 py-2.5 rounded-lg text-sm font-medium bg-white/5 text-[var(--text-secondary)] hover:bg-white/10 transition-colors cursor-pointer"
-              @click="tryAgain"
-            >
-              Try Again
-            </button>
+            <GlassButton variant="ghost" @click="tryAgain">Try Again</GlassButton>
           </div>
-        </div>
+        </GlassCard>
 
         <!-- Success summary -->
-        <div
+        <GlassCard
           v-if="retrieveStatus === 'success'"
-          class="rounded-xl bg-[var(--color-success)]/5 border border-[var(--color-success)]/20 p-6 mt-4"
+          padding="lg"
         >
-          <div class="flex items-center gap-3 mb-4">
+          <div class="flex items-center gap-3 mb-5">
             <svg class="w-6 h-6 text-[var(--color-success)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
@@ -433,25 +418,15 @@ function tryAgain() {
             </p>
           </div>
           <div class="flex gap-3">
-            <button
-              class="px-5 py-2.5 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-600/25 cursor-pointer"
-              @click="deployThese"
-            >
-              Deploy These
-            </button>
-            <button
-              class="px-5 py-2.5 rounded-lg text-sm font-medium bg-white/5 text-[var(--text-secondary)] hover:bg-white/10 transition-colors cursor-pointer"
-              @click="resetWizard"
-            >
-              Done
-            </button>
+            <GlassButton variant="primary" @click="deployThese">Deploy These</GlassButton>
+            <GlassButton variant="ghost" @click="resetWizard">Done</GlassButton>
           </div>
-        </div>
+        </GlassCard>
 
         <!-- Error from operation -->
-        <div
+        <GlassCard
           v-if="retrieveStatus === 'error' && operationId"
-          class="rounded-xl bg-[var(--color-error)]/5 border border-[var(--color-error)]/20 p-6 mt-4"
+          padding="lg"
         >
           <div class="flex items-start gap-3 mb-4">
             <svg class="w-6 h-6 text-[var(--color-error)] shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -462,13 +437,8 @@ function tryAgain() {
               <p class="text-sm text-[var(--text-muted)] mt-1">{{ retrieveError }}</p>
             </div>
           </div>
-          <button
-            class="px-5 py-2.5 rounded-lg text-sm font-medium bg-white/5 text-[var(--text-secondary)] hover:bg-white/10 transition-colors cursor-pointer"
-            @click="tryAgain"
-          >
-            Try Again
-          </button>
-        </div>
+          <GlassButton variant="ghost" @click="tryAgain">Try Again</GlassButton>
+        </GlassCard>
       </div>
     </Transition>
   </div>

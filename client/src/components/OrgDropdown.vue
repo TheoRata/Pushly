@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useOrgs } from '../composables/useOrgs'
+import GlassBadge from './glass/GlassBadge.vue'
 
 const props = defineProps({
   modelValue: {
@@ -38,24 +39,20 @@ function statusColor(status) {
   }
 }
 
-function typeBadgeClass(type) {
-  if (type === 'production') return 'bg-[var(--color-error)]/15 text-[var(--color-error)]'
-  return 'bg-[var(--color-primary)]/15 text-[var(--color-primary)]'
-}
-
 const selectedOrg = () => orgs.value.find((o) => o.alias === props.modelValue)
 </script>
 
 <template>
   <div class="relative">
-    <label v-if="label" class="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">
+    <label v-if="label" class="block text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider mb-2">
       {{ label }}
     </label>
 
     <!-- Trigger -->
     <button
       type="button"
-      class="flex items-center justify-between w-full px-3 py-2.5 rounded-lg bg-[var(--bg-surface)] border border-white/10 text-sm text-[var(--text-primary)] hover:border-white/20 transition-colors cursor-pointer"
+      class="flex items-center justify-between w-full px-3 py-2.5 rounded-[var(--radius-md)] glass border border-[var(--glass-border)] text-sm text-[var(--text-primary)] hover:border-[var(--color-primary-border)] transition-all duration-200 cursor-pointer"
+      style="backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur)"
       @click="open = !open"
       @blur="setTimeout(() => open = false, 150)"
     >
@@ -67,7 +64,7 @@ const selectedOrg = () => orgs.value.find((o) => o.alias === props.modelValue)
 
       <!-- Chevron -->
       <svg
-        class="w-4 h-4 text-[var(--text-muted)] shrink-0 transition-transform"
+        class="w-4 h-4 text-[var(--text-muted)] shrink-0 transition-transform duration-200"
         :class="open ? 'rotate-180' : ''"
         fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
       >
@@ -86,7 +83,8 @@ const selectedOrg = () => orgs.value.find((o) => o.alias === props.modelValue)
     >
       <div
         v-if="open"
-        class="absolute z-50 mt-1 w-full rounded-lg bg-[var(--bg-elevated)] border border-white/10 shadow-xl overflow-hidden"
+        class="absolute z-50 mt-1 w-full rounded-[var(--radius-md)] glass border border-[var(--glass-border)] shadow-xl overflow-hidden"
+        style="backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur)"
       >
         <div v-if="orgs.length === 0" class="px-3 py-3 text-sm text-[var(--text-muted)]">
           No orgs connected
@@ -95,19 +93,19 @@ const selectedOrg = () => orgs.value.find((o) => o.alias === props.modelValue)
           v-for="org in orgs"
           :key="org.alias"
           type="button"
-          class="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-left transition-colors cursor-pointer"
+          class="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-left transition-colors duration-150 cursor-pointer"
           :class="[
             org.status === 'expired'
               ? 'text-[var(--text-muted)] opacity-60'
-              : 'text-[var(--text-primary)] hover:bg-white/5',
-            org.alias === modelValue ? 'bg-[var(--color-primary)]/10' : ''
+              : 'text-[var(--text-primary)] hover:bg-[var(--glass-bg-hover)]',
+            org.alias === modelValue ? 'bg-[var(--color-primary-bg)]' : ''
           ]"
           @mousedown.prevent="select(org.alias)"
         >
           <span :class="['w-2 h-2 rounded-full shrink-0', statusColor(org.status)]" />
           <span class="truncate flex-1">{{ org.alias }}</span>
           <span v-if="org.status === 'expired'" class="text-xs text-[var(--color-error)]">Reconnect</span>
-          <span v-if="org.type === 'production'" :class="['text-[10px] font-medium px-1.5 py-0.5 rounded', typeBadgeClass(org.type)]">PROD</span>
+          <GlassBadge v-if="org.type === 'production'" variant="error" size="sm">PROD</GlassBadge>
         </button>
       </div>
     </Transition>
