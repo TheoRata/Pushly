@@ -80,7 +80,7 @@ function isActive(path) {
 
     <!-- Bottom section -->
     <div class="px-5 py-4 border-t border-white/5">
-      <p class="sidebar-label text-[var(--text-muted)] text-xs">SF Deploy Kit</p>
+      <p class="sidebar-label text-[var(--text-muted)] text-xs">Pushly</p>
     </div>
   </aside>
 </template>
