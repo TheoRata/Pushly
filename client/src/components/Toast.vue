@@ -18,10 +18,10 @@ const { toasts } = useToast()
         <div
           v-for="toast in toasts"
           :key="toast.id"
-          class="pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg text-sm font-medium min-w-[280px] max-w-[400px]"
+          class="pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-full text-sm font-medium min-w-[280px] max-w-[400px] backdrop-blur-[var(--glass-blur)]"
           :class="toast.type === 'success'
-            ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-400'
-            : 'bg-red-500/15 border border-red-500/30 text-red-400'"
+            ? 'bg-[var(--color-success-bg)] border border-[var(--color-success-border)] text-[var(--color-success)]'
+            : 'bg-[var(--color-error-bg)] border border-[var(--color-error-border)] text-[var(--color-error)]'"
         >
           <!-- Success icon -->
           <svg v-if="toast.type === 'success'" class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">

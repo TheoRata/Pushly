@@ -1,6 +1,9 @@
 <script setup>
 import { ref } from 'vue'
 import { useApi } from '../composables/useApi'
+import GlassCard from './glass/GlassCard.vue'
+import GlassButton from './glass/GlassButton.vue'
+import GlassBadge from './glass/GlassBadge.vue'
 
 const props = defineProps({
   checks: { type: Array, required: true },
@@ -35,12 +38,12 @@ async function retry() {
 </script>
 
 <template>
-  <div class="flex items-center justify-center min-h-screen bg-[var(--bg-base)]">
+  <div class="flex items-center justify-center min-h-screen" style="background: linear-gradient(135deg, var(--bg-base) 0%, var(--bg-base-end) 100%);">
     <div class="max-w-lg w-full mx-4">
-      <div class="rounded-2xl bg-[var(--bg-primary)] border border-white/5 p-8 shadow-xl">
+      <GlassCard padding="lg" glow>
         <!-- Icon -->
-        <div class="flex items-center justify-center w-16 h-16 mx-auto mb-6 rounded-2xl bg-red-500/10">
-          <svg class="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+        <div class="flex items-center justify-center w-16 h-16 mx-auto mb-6 rounded-2xl bg-[var(--color-error-bg)] border border-[var(--color-error-border)]">
+          <svg class="w-8 h-8 text-[var(--color-error)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
           </svg>
         </div>
@@ -55,25 +58,30 @@ async function retry() {
           <div
             v-for="check in checks"
             :key="check.name"
-            class="flex items-start gap-3 px-4 py-3 rounded-lg"
+            class="flex items-start gap-3 px-4 py-3 rounded-[var(--radius-md)] backdrop-blur-sm"
             :class="check.status === 'pass'
-              ? 'bg-emerald-500/5 border border-emerald-500/20'
-              : 'bg-red-500/5 border border-red-500/20'"
+              ? 'bg-[var(--color-success-bg)] border border-[var(--color-success-border)]'
+              : 'bg-[var(--color-error-bg)] border border-[var(--color-error-border)]'"
           >
             <!-- Pass icon -->
-            <svg v-if="check.status === 'pass'" class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <svg v-if="check.status === 'pass'" class="w-5 h-5 text-[var(--color-success)] shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
             </svg>
             <!-- Fail icon -->
-            <svg v-else class="w-5 h-5 text-red-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <svg v-else class="w-5 h-5 text-[var(--color-error)] shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
             </svg>
 
             <div class="flex-1 min-w-0">
-              <p class="text-sm font-medium" :class="check.status === 'pass' ? 'text-emerald-400' : 'text-red-400'">
-                {{ check.name }}
-              </p>
-              <p class="text-xs mt-0.5" :class="check.status === 'pass' ? 'text-emerald-400/70' : 'text-red-400/70'">
+              <div class="flex items-center gap-2 mb-0.5">
+                <p class="text-sm font-medium" :class="check.status === 'pass' ? 'text-[var(--color-success)]' : 'text-[var(--color-error)]'">
+                  {{ check.name }}
+                </p>
+                <GlassBadge :variant="check.status === 'pass' ? 'success' : 'error'" size="sm">
+                  {{ check.status === 'pass' ? 'Pass' : 'Fail' }}
+                </GlassBadge>
+              </div>
+              <p class="text-xs mt-0.5" :class="check.status === 'pass' ? 'text-[var(--color-success)]/70' : 'text-[var(--color-error)]/70'">
                 {{ check.message }}
               </p>
               <p v-if="check.status === 'fail' && installInstructions[check.name]" class="text-xs text-[var(--text-muted)] mt-1.5 font-mono">
@@ -84,18 +92,16 @@ async function retry() {
         </div>
 
         <!-- Retry button -->
-        <button
-          class="w-full px-6 py-3 rounded-lg bg-[var(--color-primary)] text-white text-sm font-semibold hover:bg-[var(--color-primary)]/90 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          :disabled="retrying"
+        <GlassButton
+          variant="primary"
+          size="lg"
+          :loading="retrying"
+          class="w-full"
           @click="retry"
         >
-          <svg v-if="retrying" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" />
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-          </svg>
           {{ retrying ? 'Checking...' : 'Retry' }}
-        </button>
-      </div>
+        </GlassButton>
+      </GlassCard>
     </div>
   </div>
 </template>

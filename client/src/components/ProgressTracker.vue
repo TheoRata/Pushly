@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useWebSocket } from '../composables/useWebSocket'
+import GlassCard from './glass/GlassCard.vue'
 
 const props = defineProps({
   operationId: {
@@ -106,9 +107,9 @@ function statusIcon(s) {
 </script>
 
 <template>
-  <div class="rounded-xl bg-[var(--bg-surface)] border border-white/5 overflow-hidden">
+  <div class="glass overflow-hidden">
     <!-- Header -->
-    <div class="px-5 py-4 border-b border-white/5">
+    <div class="px-5 py-4 border-b border-[var(--glass-border)]">
       <div class="flex items-center justify-between mb-3">
         <span class="text-sm font-medium text-[var(--text-primary)]">
           <template v-if="status === 'running' && currentComponent">
@@ -131,15 +132,20 @@ function statusIcon(s) {
       </div>
 
       <!-- Progress bar -->
-      <div class="h-2 rounded-full bg-[var(--bg-primary)] overflow-hidden">
+      <div class="h-2 rounded-full overflow-hidden" style="background: var(--glass-bg);">
         <div
           class="h-full rounded-full transition-all duration-500 ease-out"
           :class="[
             status === 'error' ? 'bg-[var(--color-error)]'
               : status === 'partial' ? 'bg-[var(--color-warning)]'
-              : 'bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-secondary)]'
+              : ''
           ]"
-          :style="{ width: `${progress}%` }"
+          :style="[
+            { width: `${progress}%` },
+            status !== 'error' && status !== 'partial'
+              ? { background: 'linear-gradient(to right, var(--color-primary), var(--color-primary-end))' }
+              : {}
+          ]"
         />
       </div>
     </div>
@@ -147,7 +153,8 @@ function statusIcon(s) {
     <!-- End state banners -->
     <div
       v-if="status === 'success'"
-      class="px-5 py-3 bg-[var(--color-success)]/10 border-b border-[var(--color-success)]/20"
+      class="px-5 py-3 border-b border-[var(--color-success-border)]"
+      style="background: var(--color-success-bg);"
     >
       <p class="text-sm text-[var(--color-success)] font-medium">
         {{ totalCount > 0 ? `All ${totalCount} components ${actionVerbPast} successfully.` : `${actionLabel} completed successfully.` }}
@@ -155,13 +162,15 @@ function statusIcon(s) {
     </div>
     <div
       v-if="status === 'error'"
-      class="px-5 py-3 bg-[var(--color-error)]/10 border-b border-[var(--color-error)]/20"
+      class="px-5 py-3 border-b border-[var(--color-error-border)]"
+      style="background: var(--color-error-bg);"
     >
       <p class="text-sm text-[var(--color-error)] font-medium">{{ errorMessage }}</p>
     </div>
     <div
       v-if="status === 'partial'"
-      class="px-5 py-3 bg-[var(--color-warning)]/10 border-b border-[var(--color-warning)]/20"
+      class="px-5 py-3 border-b border-[var(--color-warning-border)]"
+      style="background: var(--color-warning-bg);"
     >
       <p class="text-sm text-[var(--color-warning)] font-medium">
         {{ completedCount }} of {{ totalCount }} components {{ actionVerbPast }}. Some components failed.
@@ -173,7 +182,7 @@ function statusIcon(s) {
       <div
         v-for="comp in components"
         :key="comp.name"
-        class="flex items-center gap-3 py-1.5"
+        class="flex items-center gap-3 py-1.5 px-2 rounded-[var(--radius-sm)] transition-colors hover:bg-[var(--glass-bg-hover)]"
       >
         <!-- Status icon -->
         <template v-if="statusIcon(comp.status) === 'check'">
@@ -193,7 +202,7 @@ function statusIcon(s) {
           </svg>
         </template>
         <template v-else>
-          <div class="w-4 h-4 rounded-full border-2 border-[var(--text-muted)]/30 shrink-0" />
+          <div class="w-4 h-4 rounded-full border-2 border-[var(--glass-border)] shrink-0" />
         </template>
 
         <span class="text-xs font-mono text-[var(--text-muted)] shrink-0">{{ comp.type }}</span>
@@ -207,7 +216,7 @@ function statusIcon(s) {
     </div>
 
     <!-- Collapsible log panel -->
-    <div class="border-t border-white/5">
+    <div class="border-t border-[var(--glass-border)]">
       <button
         class="flex items-center gap-2 w-full px-5 py-2.5 text-xs text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors cursor-pointer"
         @click="showDetails = !showDetails"
@@ -223,7 +232,8 @@ function statusIcon(s) {
       </button>
       <div
         v-if="showDetails"
-        class="px-5 pb-4 max-h-48 overflow-y-auto"
+        class="px-5 pb-4 max-h-48 overflow-y-auto rounded-b-[var(--radius-lg)]"
+        style="background: var(--glass-bg);"
       >
         <pre class="text-xs text-[var(--text-muted)] font-mono whitespace-pre-wrap leading-relaxed">{{ logs.join('\n') || 'No log output yet.' }}</pre>
       </div>
