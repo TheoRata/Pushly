@@ -1,5 +1,5 @@
 {
-  "name": "sf-deploy-manager-server",
+  "name": "pushly-server",
   "private": true,
   "type": "module",
   "dependencies": {

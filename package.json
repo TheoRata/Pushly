@@ -1,5 +1,12 @@
 {
-  "name": "sf-deploy-manager",
+  "name": "pushly",
+  "description": "Deploy Salesforce metadata without touching the terminal",
+  "keywords": ["salesforce", "metadata", "deploy", "admin", "sf-cli", "devops"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YOUR_USERNAME/pushly"
+  },
+  "license": "Elastic-2.0",
   "private": true,
   "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
