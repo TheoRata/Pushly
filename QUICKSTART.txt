@@ -1,0 +1,98 @@
+============================================
+  Salesforce Deploy Kit — Quick Start Guide
+============================================
+
+PREREQUISITES
+─────────────
+1. Salesforce CLI installed:
+     npm install @salesforce/cli --global
+
+   Verify: sf --version
+
+2. Dev Hub enabled in your production org:
+   - Login to production as System Admin
+   - Setup → Quick Find → "Dev Hub"
+   - Toggle "Enable Dev Hub" ON
+   - Toggle "Enable Unlocked Packages" ON
+
+3. Make this script executable:
+     chmod +x sf-deploy.sh
+
+
+FIRST-TIME SETUP (do once)
+──────────────────────────
+1. Authenticate to your Dev Hub (production org):
+     ./sf-deploy.sh login
+     → Choose option 1 (Dev Hub)
+
+2. Authenticate to your sandbox(es):
+     ./sf-deploy.sh login
+     → Choose option 2 (Sandbox)
+
+3. Create a project (if starting fresh):
+     ./sf-deploy.sh setup
+
+4. Pull metadata from your sandbox:
+     ./sf-deploy.sh pull
+
+5. Create your first package:
+     ./sf-deploy.sh package-create
+
+
+DEPLOYING A FEATURE (repeat for each release)
+──────────────────────────────────────────────
+1. Make your changes in the sandbox (clicks or code)
+
+2. Pull the latest metadata:
+     ./sf-deploy.sh pull
+
+3. Build a package version:
+     ./sf-deploy.sh version-create
+
+4. Install in staging/UAT for testing:
+     ./sf-deploy.sh install
+
+5. After testing passes, promote the version:
+     ./sf-deploy.sh promote
+
+6. Install in production:
+     ./sf-deploy.sh install
+
+
+SHARING WITH YOUR TEAM
+──────────────────────
+Copy the entire salesforce-deploy-kit/ folder to:
+  - A shared network drive
+  - SharePoint/OneDrive
+  - Any shared location your team can access
+
+Each team member needs to:
+  1. Install the Salesforce CLI on their machine
+  2. Run ./sf-deploy.sh login to authenticate
+  3. Use the same project folder for pulls and version builds
+
+
+COMMON COMMANDS
+───────────────
+./sf-deploy.sh help            Show all commands
+./sf-deploy.sh status          Show authenticated orgs
+./sf-deploy.sh version-list    Show all package versions
+./sf-deploy.sh pull            Get metadata from an org
+./sf-deploy.sh push            Deploy metadata directly (without packaging)
+
+
+TROUBLESHOOTING
+───────────────
+"sf: command not found"
+  → Install the CLI: npm install @salesforce/cli --global
+
+"Not authenticated to Dev Hub"
+  → Run: ./sf-deploy.sh login → Choose Dev Hub
+
+"Apex code coverage is below 75%"
+  → Write more test classes, or use version-create without coverage
+    (but you won't be able to promote to production)
+
+"Package install failed"
+  → Check the error message — usually a missing dependency
+  → Try: sf package install --help for options
