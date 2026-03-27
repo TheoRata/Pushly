@@ -1,64 +1,66 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useApi } from './composables/useApi'
-import Sidebar from './components/Sidebar.vue'
-import Toast from './components/Toast.vue'
+import { useOrgs } from './composables/useOrgs'
+import TopNavBar from './components/TopNavBar.vue'
 import PrerequisiteError from './components/PrerequisiteError.vue'
+import Toast from './components/Toast.vue'
+import GlassBadge from './components/glass/GlassBadge.vue'
 
-const { get } = useApi()
+const api = useApi()
+const { orgs } = useOrgs()
+const connectedCount = computed(() => orgs.value.filter((o) => o.status === 'connected').length)
 
-const prereqOk = ref(null) // null = loading, true = passed, false = failed
-const prereqChecks = ref([])
+const prereqResult = ref(null)
+const loading = ref(true)
 
 onMounted(async () => {
   try {
-    const result = await get('/prerequisites')
-    if (result.ok) {
-      prereqOk.value = true
-    } else {
-      prereqChecks.value = result.checks
-      prereqOk.value = false
-    }
+    prereqResult.value = await api.get('/prerequisites')
   } catch {
-    // Server unreachable — show the app anyway (dev mode with separate vite server)
-    prereqOk.value = true
+    prereqResult.value = { passed: false, checks: [{ name: 'Server', status: 'fail', message: 'Cannot reach server' }] }
   }
+  loading.value = false
 })
 
-function handlePrereqResolved(newResult) {
-  if (!newResult || newResult.ok !== false) {
-    prereqOk.value = true
-  } else {
-    prereqChecks.value = newResult.checks
-  }
-}
+const allPassed = () => prereqResult.value?.passed || prereqResult.value?.checks?.every((c) => c.status === 'pass')
 </script>
 
 <template>
-  <!-- Loading state -->
-  <div v-if="prereqOk === null" class="flex items-center justify-center h-screen bg-[var(--bg-base)]">
-    <div class="flex flex-col items-center gap-3">
-      <svg class="w-8 h-8 text-[var(--color-primary)] animate-spin" fill="none" viewBox="0 0 24 24">
-        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" />
-        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-      </svg>
-      <p class="text-sm text-[var(--text-secondary)]">Checking prerequisites...</p>
-    </div>
+  <div v-if="loading" class="flex items-center justify-center h-screen">
+    <div class="animate-spin w-8 h-8 border-2 border-[var(--color-primary)] border-t-transparent rounded-full" />
   </div>
 
-  <!-- Prerequisite error -->
   <PrerequisiteError
-    v-else-if="prereqOk === false"
-    :checks="prereqChecks"
-    @resolved="handlePrereqResolved"
+    v-else-if="!allPassed()"
+    :checks="prereqResult.checks"
+    @resolved="prereqResult = $event"
   />
 
-  <!-- Main app -->
-  <div v-else class="flex h-screen bg-[var(--bg-base)]">
-    <Sidebar />
-    <main class="flex-1 overflow-auto p-6">
-      <router-view />
+  <div v-else class="min-h-screen">
+    <TopNavBar>
+      <template #right>
+        <GlassBadge v-if="connectedCount > 0" variant="purple" size="sm">{{ connectedCount }} org{{ connectedCount !== 1 ? 's' : '' }}</GlassBadge>
+      </template>
+    </TopNavBar>
+    <main class="pt-14">
+      <router-view v-slot="{ Component }">
+        <transition name="fade" mode="out-in">
+          <component :is="Component" />
+        </transition>
+      </router-view>
     </main>
     <Toast />
   </div>
 </template>
+
+<style>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.15s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>
