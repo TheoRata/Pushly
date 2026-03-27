@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-SF Deploy Manager — a local web UI wrapping the Salesforce CLI. Lets CLI-shy Salesforce admins retrieve and deploy metadata between orgs via guided wizard flows. Distributed via shared folder (SharePoint/OneDrive), runs locally on each user's machine.
+Pushly — a local web UI wrapping the Salesforce CLI. Lets CLI-shy Salesforce admins retrieve and deploy metadata between orgs via guided wizard flows. Distributed via shared folder (SharePoint/OneDrive), runs locally on each user's machine.
 
 ## Commands
 
