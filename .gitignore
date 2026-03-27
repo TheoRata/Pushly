@@ -6,5 +6,6 @@ client/dist/
 data/history/
 data/history/archive/
 data/rollbacks/
+data/bundles/
 workspaces/
 .superpowers/
