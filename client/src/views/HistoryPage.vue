@@ -2,6 +2,10 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useApi } from '../composables/useApi.js'
 import ConfirmModal from '../components/ConfirmModal.vue'
+import GlassCard from '../components/glass/GlassCard.vue'
+import GlassButton from '../components/glass/GlassButton.vue'
+import GlassBadge from '../components/glass/GlassBadge.vue'
+import GlassToggle from '../components/glass/GlassToggle.vue'
 
 const { get, post } = useApi()
 
@@ -101,10 +105,10 @@ function operationLabel(record) {
   return 'Deploy'
 }
 
-function operationBadgeClass(record) {
-  if (record.type === 'retrieve') return 'bg-blue-500/20 text-blue-400'
-  if (record.type === 'rollback') return 'bg-amber-500/20 text-amber-400'
-  return 'bg-purple-500/20 text-purple-400'
+function operationBadgeVariant(record) {
+  if (record.type === 'retrieve') return 'info'
+  if (record.type === 'rollback') return 'warning'
+  return 'purple'
 }
 
 function orgFlow(record) {
@@ -171,22 +175,22 @@ watch([filterUser, filterOrg, filterStatus, filterRange], fetchHistory)
 </script>
 
 <template>
-  <div class="max-w-7xl mx-auto">
-    <!-- Header -->
-    <div class="mb-6">
-      <h1 class="text-2xl font-bold text-[var(--text-primary)]">History</h1>
+  <div class="max-w-6xl mx-auto px-6 py-8">
+    <!-- Page Header -->
+    <div class="mb-8">
+      <h1 class="text-2xl font-bold text-[var(--text-primary)]">Deployment History</h1>
       <p class="mt-1 text-sm text-[var(--text-secondary)]">Shared team deployment log. View past retrieve and deploy operations.</p>
     </div>
 
     <!-- Filter Bar -->
-    <div class="rounded-xl bg-[var(--bg-primary)] border border-white/5 p-4 mb-6">
+    <GlassCard padding="md" class="mb-6">
       <div class="flex flex-wrap items-end gap-4">
         <!-- By Person -->
         <div class="flex flex-col gap-1.5">
           <label class="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">Person</label>
           <select
             v-model="filterUser"
-            class="px-3 py-1.5 rounded-lg bg-[var(--bg-surface)] border border-white/10 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--color-primary)]/50 transition-colors cursor-pointer"
+            class="px-3 py-1.5 rounded-[var(--radius-md)] bg-[var(--glass-bg)] border border-[var(--glass-border)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--color-primary)]/50 transition-colors cursor-pointer"
           >
             <option value="">All users</option>
             <option v-for="u in uniqueUsers" :key="u" :value="u">{{ u }}</option>
@@ -198,7 +202,7 @@ watch([filterUser, filterOrg, filterStatus, filterRange], fetchHistory)
           <label class="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">Org</label>
           <select
             v-model="filterOrg"
-            class="px-3 py-1.5 rounded-lg bg-[var(--bg-surface)] border border-white/10 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--color-primary)]/50 transition-colors cursor-pointer"
+            class="px-3 py-1.5 rounded-[var(--radius-md)] bg-[var(--glass-bg)] border border-[var(--glass-border)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--color-primary)]/50 transition-colors cursor-pointer"
           >
             <option value="">All orgs</option>
             <option v-for="o in uniqueOrgs" :key="o" :value="o">{{ o }}</option>
@@ -208,37 +212,19 @@ watch([filterUser, filterOrg, filterStatus, filterRange], fetchHistory)
         <!-- By Status -->
         <div class="flex flex-col gap-1.5">
           <label class="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">Status</label>
-          <div class="flex rounded-lg overflow-hidden border border-white/10">
-            <button
-              v-for="s in [{ value: 'all', label: 'All' }, { value: 'success', label: 'Passed' }, { value: 'failed', label: 'Failed' }]"
-              :key="s.value"
-              class="px-3 py-1.5 text-sm font-medium transition-colors cursor-pointer"
-              :class="filterStatus === s.value
-                ? 'bg-[var(--color-primary)] text-white'
-                : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'"
-              @click="filterStatus = s.value"
-            >
-              {{ s.label }}
-            </button>
-          </div>
+          <GlassToggle
+            :options="[{ label: 'All', value: 'all' }, { label: 'Passed', value: 'success' }, { label: 'Failed', value: 'failed' }]"
+            v-model="filterStatus"
+          />
         </div>
 
         <!-- By Date Range -->
         <div class="flex flex-col gap-1.5">
           <label class="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">Date Range</label>
-          <div class="flex rounded-lg overflow-hidden border border-white/10">
-            <button
-              v-for="r in ['7d', '30d', '90d', 'custom']"
-              :key="r"
-              class="px-3 py-1.5 text-sm font-medium transition-colors cursor-pointer"
-              :class="filterRange === r
-                ? 'bg-[var(--color-primary)] text-white'
-                : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'"
-              @click="filterRange = r"
-            >
-              {{ r === 'custom' ? 'Custom' : r }}
-            </button>
-          </div>
+          <GlassToggle
+            :options="[{ label: '7d', value: '7d' }, { label: '30d', value: '30d' }, { label: '90d', value: '90d' }, { label: 'Custom', value: 'custom' }]"
+            v-model="filterRange"
+          />
         </div>
 
         <!-- Custom Date Inputs -->
@@ -248,7 +234,7 @@ watch([filterUser, filterOrg, filterStatus, filterRange], fetchHistory)
             <input
               v-model="customFrom"
               type="date"
-              class="px-3 py-1.5 rounded-lg bg-[var(--bg-surface)] border border-white/10 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--color-primary)]/50 transition-colors"
+              class="px-3 py-1.5 rounded-[var(--radius-md)] bg-[var(--glass-bg)] border border-[var(--glass-border)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--color-primary)]/50 transition-colors"
             />
           </div>
           <div class="flex flex-col gap-1.5">
@@ -256,55 +242,57 @@ watch([filterUser, filterOrg, filterStatus, filterRange], fetchHistory)
             <input
               v-model="customTo"
               type="date"
-              class="px-3 py-1.5 rounded-lg bg-[var(--bg-surface)] border border-white/10 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--color-primary)]/50 transition-colors"
+              class="px-3 py-1.5 rounded-[var(--radius-md)] bg-[var(--glass-bg)] border border-[var(--glass-border)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--color-primary)]/50 transition-colors"
             />
           </div>
-          <button
-            class="px-4 py-1.5 rounded-lg bg-[var(--color-primary)] text-white text-sm font-medium hover:bg-[var(--color-primary)]/80 transition-colors cursor-pointer self-end"
-            @click="fetchHistory"
-          >
+          <GlassButton variant="primary" size="sm" class="self-end" @click="fetchHistory">
             Apply
-          </button>
+          </GlassButton>
         </template>
 
         <!-- Refresh -->
-        <button
-          class="ml-auto px-3 py-1.5 rounded-lg bg-[var(--bg-surface)] border border-white/10 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-white/20 transition-colors cursor-pointer self-end"
+        <GlassButton
+          variant="ghost"
+          size="sm"
+          class="ml-auto self-end"
           :disabled="loading"
           @click="fetchHistory"
         >
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+          </svg>
           <span v-if="loading">Loading...</span>
           <span v-else>Refresh</span>
-        </button>
+        </GlassButton>
       </div>
-    </div>
+    </GlassCard>
 
     <!-- Error -->
-    <div v-if="error" class="mb-4 px-4 py-3 rounded-lg bg-[var(--color-error)]/10 border border-[var(--color-error)]/20 text-sm text-[var(--color-error)]">
+    <div v-if="error" class="mb-4 px-4 py-3 rounded-[var(--radius-md)] bg-[var(--color-error-bg)] border border-[var(--color-error-border)] text-sm text-[var(--color-error)]">
       {{ error }}
     </div>
 
-    <!-- Loading -->
+    <!-- Loading State -->
     <div v-if="loading && records.length === 0" class="text-center py-16">
       <div class="inline-block w-6 h-6 border-2 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" />
       <p class="mt-3 text-sm text-[var(--text-secondary)]">Loading history...</p>
     </div>
 
     <!-- Empty State -->
-    <div v-else-if="!loading && records.length === 0" class="text-center py-16">
-      <div class="w-12 h-12 mx-auto mb-4 rounded-full bg-[var(--bg-surface)] flex items-center justify-center">
+    <GlassCard v-else-if="!loading && records.length === 0" padding="lg" class="text-center">
+      <div class="w-12 h-12 mx-auto mb-4 rounded-full bg-[var(--glass-bg)] flex items-center justify-center">
         <svg class="w-6 h-6 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
         </svg>
       </div>
       <p class="text-[var(--text-secondary)]">No deployments yet.</p>
       <p class="mt-1 text-sm text-[var(--text-muted)]">Use the Retrieve or Deploy pages to get started.</p>
-    </div>
+    </GlassCard>
 
     <!-- History Table -->
-    <div v-else class="rounded-xl border border-white/5 overflow-hidden">
+    <div v-else class="glass rounded-[var(--radius-lg)] overflow-hidden">
       <!-- Table Header -->
-      <div class="grid grid-cols-[48px_1fr_100px_100px_1.2fr_140px_80px_140px] gap-2 px-4 py-3 bg-[var(--bg-primary)] border-b border-white/5 text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">
+      <div class="grid grid-cols-[48px_1fr_100px_100px_1.2fr_140px_80px_140px] gap-2 px-4 py-3 border-b border-[var(--glass-border)] text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide sticky top-0 bg-[var(--bg-primary)] z-10">
         <div>Status</div>
         <div>User</div>
         <div>Operation</div>
@@ -317,11 +305,11 @@ watch([filterUser, filterOrg, filterStatus, filterRange], fetchHistory)
 
       <!-- Table Rows -->
       <div v-for="record in records" :key="record.id">
+        <!-- Main Row -->
         <div
-          class="grid grid-cols-[48px_1fr_100px_100px_1.2fr_140px_80px_140px] gap-2 px-4 py-3 items-center border-b border-white/5 hover:bg-white/[0.02] transition-colors cursor-pointer text-sm"
+          class="grid grid-cols-[48px_1fr_100px_100px_1.2fr_140px_80px_140px] gap-2 px-4 py-3 items-center border-b border-[var(--glass-border)] transition-colors cursor-pointer text-sm hover:bg-[var(--glass-bg-hover)]"
           :class="{
-            'border-l-2 border-l-orange-500/60': isProductionOrg(record),
-            'bg-[var(--bg-surface)]': true,
+            'border-l-2 border-l-[var(--color-primary)]': isProductionOrg(record),
           }"
           @click="toggleRow(record.id)"
         >
@@ -347,9 +335,9 @@ watch([filterUser, filterOrg, filterStatus, filterRange], fetchHistory)
 
           <!-- Operation -->
           <div>
-            <span class="inline-block px-2 py-0.5 rounded text-xs font-medium" :class="operationBadgeClass(record)">
+            <GlassBadge :variant="operationBadgeVariant(record)" size="md">
               {{ operationLabel(record) }}
-            </span>
+            </GlassBadge>
           </div>
 
           <!-- Components -->
@@ -378,19 +366,17 @@ watch([filterUser, filterOrg, filterStatus, filterRange], fetchHistory)
 
           <!-- Actions -->
           <div class="flex items-center justify-end gap-2" @click.stop>
-            <button
-              class="px-2.5 py-1 rounded text-xs font-medium bg-white/5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/10 transition-colors cursor-pointer"
-              @click="toggleRow(record.id)"
-            >
+            <GlassButton variant="ghost" size="sm" @click="toggleRow(record.id)">
               Details
-            </button>
-            <button
+            </GlassButton>
+            <GlassButton
               v-if="record.type === 'deploy' && record.status === 'success'"
-              class="px-2.5 py-1 rounded text-xs font-medium bg-[var(--color-warning)]/10 text-[var(--color-warning)] hover:bg-[var(--color-warning)]/20 transition-colors cursor-pointer"
+              variant="danger"
+              size="sm"
               @click="openRollback(record)"
             >
               Rollback
-            </button>
+            </GlassButton>
           </div>
         </div>
 
@@ -405,7 +391,7 @@ watch([filterUser, filterOrg, filterStatus, filterRange], fetchHistory)
         >
           <div
             v-if="expandedRowId === record.id"
-            class="overflow-hidden border-b border-white/5 bg-[var(--bg-primary)]"
+            class="overflow-hidden border-b border-[var(--glass-border)] bg-[var(--glass-bg)]"
           >
             <div class="px-6 py-4 space-y-3">
               <!-- Operation ID -->
@@ -433,7 +419,7 @@ watch([filterUser, filterOrg, filterStatus, filterRange], fetchHistory)
                   <span
                     v-for="(comp, i) in record.components"
                     :key="i"
-                    class="inline-block px-2 py-0.5 rounded bg-white/5 text-xs text-[var(--text-secondary)] font-mono"
+                    class="inline-block px-2 py-0.5 rounded-[var(--radius-sm)] bg-[var(--glass-bg)] border border-[var(--glass-border)] text-xs text-[var(--text-secondary)] font-mono"
                   >
                     {{ typeof comp === 'string' ? comp : comp.fullName || comp.type + ':' + comp.name }}
                   </span>
@@ -443,7 +429,7 @@ watch([filterUser, filterOrg, filterStatus, filterRange], fetchHistory)
               <!-- Error Details -->
               <div v-if="record.error" class="mt-2">
                 <p class="text-xs font-medium text-[var(--color-error)] mb-1">Error:</p>
-                <pre class="text-xs text-[var(--color-error)]/80 bg-[var(--color-error)]/5 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap">{{ record.error }}</pre>
+                <pre class="text-xs text-[var(--color-error)]/80 bg-[var(--color-error-bg)] border border-[var(--color-error-border)] rounded-[var(--radius-md)] p-3 overflow-x-auto whitespace-pre-wrap">{{ record.error }}</pre>
               </div>
 
               <!-- Failed Components -->
@@ -453,7 +439,7 @@ watch([filterUser, filterOrg, filterStatus, filterRange], fetchHistory)
                   <div
                     v-for="(fc, i) in record.failedComponents"
                     :key="i"
-                    class="text-xs text-[var(--text-secondary)] bg-[var(--color-error)]/5 rounded px-2 py-1"
+                    class="text-xs text-[var(--text-secondary)] bg-[var(--color-error-bg)] border border-[var(--color-error-border)] rounded-[var(--radius-sm)] px-2 py-1"
                   >
                     <span class="font-mono">{{ fc.fullName || fc.componentType }}</span>
                     <span v-if="fc.problem" class="text-[var(--color-error)]/70 ml-2">{{ fc.problem }}</span>
