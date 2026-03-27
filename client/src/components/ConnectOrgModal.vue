@@ -1,6 +1,10 @@
 <script setup>
 import { ref, computed, onUnmounted } from 'vue'
 import { useOrgs } from '../composables/useOrgs'
+import GlassModal from './glass/GlassModal.vue'
+import GlassToggle from './glass/GlassToggle.vue'
+import GlassInput from './glass/GlassInput.vue'
+import GlassButton from './glass/GlassButton.vue'
 
 const emit = defineEmits(['connected', 'close'])
 
@@ -14,6 +18,11 @@ const step = ref('form') // form | waiting | success | error
 const errorMessage = ref('')
 let pollTimer = null
 let timeoutTimer = null
+
+const orgTypeOptions = [
+  { label: 'Sandbox', value: 'sandbox' },
+  { label: 'Production', value: 'production' },
+]
 
 const domainPlaceholder = computed(() =>
   orgType.value === 'sandbox'
@@ -77,157 +86,121 @@ onUnmounted(clearTimers)
 </script>
 
 <template>
-  <Teleport to="body">
-    <div class="fixed inset-0 z-50 flex items-center justify-center">
-      <!-- Backdrop -->
-      <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="close" />
-
-      <!-- Modal -->
-      <div class="relative w-full max-w-md mx-4 rounded-xl bg-[var(--bg-surface)] border border-white/10 shadow-2xl">
-        <!-- Header -->
-        <div class="flex items-center justify-between px-6 py-4 border-b border-white/5">
-          <h2 class="text-lg font-semibold text-[var(--text-primary)]">Connect Salesforce Org</h2>
-          <button
-            class="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-            @click="close"
-          >
-            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <div class="px-6 py-5">
-          <!-- Form step -->
-          <template v-if="step === 'form'">
-            <!-- Org type selector -->
-            <label class="block text-sm font-medium text-[var(--text-secondary)] mb-2">Org Type</label>
-            <div class="grid grid-cols-2 gap-3 mb-5">
-              <button
-                type="button"
-                class="px-4 py-3 rounded-lg border text-sm font-medium transition-all cursor-pointer"
-                :class="orgType === 'production'
-                  ? 'border-[var(--color-error)]/50 bg-[var(--color-error)]/10 text-[var(--color-error)]'
-                  : 'border-white/10 bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:border-white/20'"
-                @click="orgType = 'production'"
-              >
-                Production Org
-              </button>
-              <button
-                type="button"
-                class="px-4 py-3 rounded-lg border text-sm font-medium transition-all cursor-pointer"
-                :class="orgType === 'sandbox'
-                  ? 'border-[var(--color-primary)]/50 bg-[var(--color-primary)]/10 text-[var(--color-primary)]'
-                  : 'border-white/10 bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:border-white/20'"
-                @click="orgType = 'sandbox'"
-              >
-                Sandbox
-              </button>
-            </div>
-
-            <!-- Alias input -->
-            <label class="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Friendly Name</label>
-            <input
-              v-model="alias"
-              type="text"
-              placeholder="e.g. my-dev-sandbox"
-              class="w-full px-3 py-2.5 rounded-lg bg-[var(--bg-primary)] border border-white/10 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--color-primary)]/50 transition-colors"
-            />
-
-            <!-- Custom domain toggle -->
-            <div class="mt-4">
-              <label class="flex items-center gap-2 cursor-pointer group">
-                <input
-                  v-model="useCustomDomain"
-                  type="checkbox"
-                  class="w-4 h-4 rounded border-white/20 bg-[var(--bg-primary)] text-[var(--color-primary)] focus:ring-[var(--color-primary)]/50 cursor-pointer accent-[var(--color-primary)]"
-                />
-                <span class="text-sm text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors">
-                  Use custom domain (My Domain)
-                </span>
-              </label>
-            </div>
-
-            <!-- Custom domain input -->
-            <div
-              v-if="useCustomDomain"
-              class="mt-3"
-            >
-              <label class="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Custom Domain</label>
-              <input
-                v-model="customDomain"
-                type="text"
-                :placeholder="domainPlaceholder"
-                class="w-full px-3 py-2.5 rounded-lg bg-[var(--bg-primary)] border border-white/10 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--color-primary)]/50 transition-colors"
-              />
-              <p class="mt-1.5 text-xs text-[var(--text-muted)]">
-                Your Salesforce My Domain URL. Found in Setup > My Domain.
-              </p>
-            </div>
-
-            <p class="mt-4 text-xs text-[var(--text-muted)] leading-relaxed">
-              You'll be redirected to Salesforce to log in. This app will be granted permission to read and deploy metadata on your behalf.
-            </p>
-
-            <button
-              class="mt-5 w-full py-2.5 rounded-lg bg-[var(--color-primary)] text-white text-sm font-semibold hover:bg-[var(--color-primary)]/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-              :disabled="!alias.trim() || (useCustomDomain && !customDomain.trim())"
-              @click="startLogin"
-            >
-              Log in to Salesforce
-            </button>
-          </template>
-
-          <!-- Waiting step -->
-          <template v-if="step === 'waiting'">
-            <div class="flex flex-col items-center py-6">
-              <!-- Spinner -->
-              <svg class="w-10 h-10 text-[var(--color-primary)] animate-spin mb-4" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" />
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-              </svg>
-              <p class="text-[var(--text-primary)] font-medium text-sm">Waiting for Salesforce login...</p>
-              <p class="text-[var(--text-muted)] text-xs mt-2">Complete the login in your browser</p>
-            </div>
-          </template>
-
-          <!-- Success step -->
-          <template v-if="step === 'success'">
-            <div class="flex flex-col items-center py-6">
-              <div class="flex items-center justify-center w-12 h-12 rounded-full bg-[var(--color-success)]/15 mb-4">
-                <svg class="w-6 h-6 text-[var(--color-success)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                </svg>
-              </div>
-              <p class="text-[var(--text-primary)] font-medium text-sm">Org connected successfully!</p>
-              <button
-                class="mt-5 px-6 py-2 rounded-lg bg-[var(--color-primary)] text-white text-sm font-medium hover:bg-[var(--color-primary)]/90 transition-colors cursor-pointer"
-                @click="close"
-              >
-                Done
-              </button>
-            </div>
-          </template>
-
-          <!-- Error step -->
-          <template v-if="step === 'error'">
-            <div class="flex flex-col items-center py-6">
-              <div class="flex items-center justify-center w-12 h-12 rounded-full bg-[var(--color-error)]/15 mb-4">
-                <svg class="w-6 h-6 text-[var(--color-error)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </div>
-              <p class="text-[var(--color-error)] font-medium text-sm">{{ errorMessage }}</p>
-              <button
-                class="mt-5 px-6 py-2 rounded-lg bg-white/10 text-[var(--text-primary)] text-sm font-medium hover:bg-white/15 transition-colors cursor-pointer"
-                @click="step = 'form'"
-              >
-                Try Again
-              </button>
-            </div>
-          </template>
-        </div>
+  <GlassModal :show="true" title="Connect Salesforce Org" max-width="480px" @close="close">
+    <!-- Form step -->
+    <template v-if="step === 'form'">
+      <!-- Org type selector -->
+      <div class="mb-5">
+        <label class="block text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider mb-2">Org Type</label>
+        <GlassToggle :options="orgTypeOptions" :model-value="orgType" @update:model-value="orgType = $event" />
       </div>
-    </div>
-  </Teleport>
+
+      <!-- Alias input -->
+      <div class="mb-4">
+        <GlassInput
+          :model-value="alias"
+          label="Friendly Name"
+          placeholder="e.g. my-dev-sandbox"
+          @update:model-value="alias = $event"
+        />
+      </div>
+
+      <!-- Custom domain toggle -->
+      <div class="mb-4">
+        <label class="flex items-center gap-2 cursor-pointer group">
+          <input
+            v-model="useCustomDomain"
+            type="checkbox"
+            class="w-4 h-4 rounded border-white/20 bg-[var(--glass-bg)] text-[var(--color-primary)] focus:ring-[var(--color-primary)]/50 cursor-pointer accent-[var(--color-primary)]"
+          />
+          <span class="text-sm text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors">
+            Use custom domain (My Domain)
+          </span>
+        </label>
+      </div>
+
+      <!-- Custom domain input -->
+      <div v-if="useCustomDomain" class="mb-4">
+        <GlassInput
+          :model-value="customDomain"
+          label="Custom Domain"
+          :placeholder="domainPlaceholder"
+          @update:model-value="customDomain = $event"
+        />
+        <p class="mt-1.5 text-xs text-[var(--text-muted)]">
+          Your Salesforce My Domain URL. Found in Setup > My Domain.
+        </p>
+      </div>
+
+      <p class="text-xs text-[var(--text-muted)] leading-relaxed">
+        You'll be redirected to Salesforce to log in. This app will be granted permission to read and deploy metadata on your behalf.
+      </p>
+    </template>
+
+    <!-- Waiting step -->
+    <template v-if="step === 'waiting'">
+      <div class="flex flex-col items-center py-6">
+        <svg class="w-10 h-10 text-[var(--color-primary)] animate-spin mb-4" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" />
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+        </svg>
+        <p class="text-[var(--text-primary)] font-medium text-sm">Waiting for Salesforce login...</p>
+        <p class="text-[var(--text-muted)] text-xs mt-2">Complete the login in your browser</p>
+      </div>
+    </template>
+
+    <!-- Success step -->
+    <template v-if="step === 'success'">
+      <div class="flex flex-col items-center py-6">
+        <div class="flex items-center justify-center w-12 h-12 rounded-full bg-[var(--color-success-bg)] border border-[var(--color-success-border)] mb-4">
+          <svg class="w-6 h-6 text-[var(--color-success)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+          </svg>
+        </div>
+        <p class="text-[var(--text-primary)] font-medium text-sm">Org connected successfully!</p>
+      </div>
+    </template>
+
+    <!-- Error step -->
+    <template v-if="step === 'error'">
+      <div class="flex flex-col items-center py-6">
+        <div class="flex items-center justify-center w-12 h-12 rounded-full bg-[var(--color-error-bg)] border border-[var(--color-error-border)] mb-4">
+          <svg class="w-6 h-6 text-[var(--color-error)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </div>
+        <p class="text-[var(--color-error)] font-medium text-sm">{{ errorMessage }}</p>
+      </div>
+    </template>
+
+    <!-- Footer slot: shown for form, success, error steps -->
+    <template #footer>
+      <GlassButton
+        v-if="step === 'form'"
+        variant="primary"
+        size="md"
+        :disabled="!alias.trim() || (useCustomDomain && !customDomain.trim())"
+        class="w-full"
+        @click="startLogin"
+      >
+        Log in to Salesforce
+      </GlassButton>
+      <GlassButton
+        v-else-if="step === 'success'"
+        variant="primary"
+        size="md"
+        @click="close"
+      >
+        Done
+      </GlassButton>
+      <GlassButton
+        v-else-if="step === 'error'"
+        variant="secondary"
+        size="md"
+        @click="step = 'form'"
+      >
+        Try Again
+      </GlassButton>
+    </template>
+  </GlassModal>
 </template>

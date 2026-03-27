@@ -1,4 +1,8 @@
 <script setup>
+import GlassCard from './glass/GlassCard.vue'
+import GlassBadge from './glass/GlassBadge.vue'
+import GlassButton from './glass/GlassButton.vue'
+
 defineProps({
   org: {
     type: Object,
@@ -17,11 +21,11 @@ function statusColor(status) {
   }
 }
 
-function typeBadgeClass(type) {
-  if (type === 'production') return 'bg-[var(--color-error)]/15 text-[var(--color-error)]'
-  if (type === 'developer') return 'bg-[var(--color-success)]/15 text-[var(--color-success)]'
-  if (type === 'scratch') return 'bg-[var(--color-warning)]/15 text-[var(--color-warning)]'
-  return 'bg-[var(--color-primary)]/15 text-[var(--color-primary)]'
+function typeBadgeVariant(type) {
+  if (type === 'production') return 'error'
+  if (type === 'developer') return 'success'
+  if (type === 'scratch') return 'warning'
+  return 'info'
 }
 
 function typeLabel(type) {
@@ -49,13 +53,7 @@ function formatTime(dateStr) {
 </script>
 
 <template>
-  <div
-    class="rounded-lg p-4 border transition-colors"
-    :class="[
-      'bg-[var(--bg-surface)] border-white/5',
-      org.type === 'production' ? 'border-l-2 border-l-[var(--color-error)]/50' : ''
-    ]"
-  >
+  <GlassCard hover padding="md">
     <!-- Header row -->
     <div class="flex items-start justify-between mb-3">
       <div class="min-w-0">
@@ -65,39 +63,32 @@ function formatTime(dateStr) {
         </div>
         <p class="text-[var(--text-muted)] text-sm truncate">{{ org.username }}</p>
       </div>
-      <span
-        :class="['text-xs font-medium px-2 py-0.5 rounded-md shrink-0', typeBadgeClass(org.type)]"
-      >
+      <GlassBadge :variant="typeBadgeVariant(org.type)" size="md">
         {{ typeLabel(org.type) }}
-      </span>
+      </GlassBadge>
     </div>
 
     <!-- Last used -->
-    <p class="text-[var(--text-muted)] text-xs mb-3">
+    <p class="text-[var(--text-muted)] text-xs mb-4">
       Last used: {{ formatTime(org.lastUsed) }}
     </p>
 
     <!-- Actions -->
     <div class="flex items-center gap-2">
-      <button
-        class="px-3 py-1.5 text-xs font-medium rounded-md bg-white/5 text-[var(--text-secondary)] hover:bg-white/10 transition-colors cursor-pointer"
-        @click="$emit('refresh', org.alias)"
-      >
+      <GlassButton variant="ghost" size="sm" @click="$emit('refresh', org.alias)">
         Refresh
-      </button>
-      <button
+      </GlassButton>
+      <GlassButton
         v-if="org.status === 'expired'"
-        class="px-3 py-1.5 text-xs font-medium rounded-md bg-[var(--color-warning)]/15 text-[var(--color-warning)] hover:bg-[var(--color-warning)]/25 transition-colors cursor-pointer"
+        variant="ghost"
+        size="sm"
         @click="$emit('reconnect', org.alias)"
       >
         Reconnect
-      </button>
-      <button
-        class="px-3 py-1.5 text-xs font-medium rounded-md text-[var(--color-error)]/70 hover:bg-[var(--color-error)]/10 hover:text-[var(--color-error)] transition-colors ml-auto cursor-pointer"
-        @click="$emit('remove', org.alias)"
-      >
+      </GlassButton>
+      <GlassButton variant="danger" size="sm" class="ml-auto" @click="$emit('remove', org.alias)">
         Remove
-      </button>
+      </GlassButton>
     </div>
-  </div>
+  </GlassCard>
 </template>
