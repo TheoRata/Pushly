@@ -9,3 +9,6 @@ data/rollbacks/
 data/bundles/
 workspaces/
 .superpowers/
+.sfdx/
+data/cache/
+docs/superpowers/
