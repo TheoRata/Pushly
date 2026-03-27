@@ -16,7 +16,7 @@ defineEmits(['step-click'])
       class="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-[var(--radius-sm)] transition-all duration-200"
       :class="[
         currentStep === step.key
-          ? 'bg-gradient-to-r from-[var(--color-primary-bg)] to-[rgba(99,102,241,0.12)] border border-[var(--color-primary-border)] text-[var(--text-primary)] glow-sm'
+          ? 'bg-gradient-to-r from-[var(--color-primary-bg)] to-[var(--color-primary-bg)] border border-[var(--color-primary-border)] text-[var(--text-primary)] glow-sm'
           : completedSteps.includes(step.key)
             ? 'text-[var(--color-primary)] hover:bg-[var(--glass-bg-hover)]'
             : 'text-[var(--text-muted)] cursor-default',

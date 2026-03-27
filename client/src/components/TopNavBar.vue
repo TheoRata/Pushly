@@ -1,5 +1,6 @@
 <script setup>
 import { useRoute } from 'vue-router'
+import SpecialText from './SpecialText.vue'
 
 const route = useRoute()
 
@@ -34,7 +35,7 @@ const icons = {
           <path d="M3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0z" />
         </svg>
       </div>
-      <span class="text-sm font-semibold text-[var(--text-primary)]">Pushly</span>
+      <SpecialText text="Pushly" :speed="25" :delay="0.3" class="text-sm font-semibold text-[var(--text-primary)]" />
     </router-link>
 
     <div class="flex-1 flex justify-center">

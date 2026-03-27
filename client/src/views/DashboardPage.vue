@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useApi } from '../composables/useApi'
 import { useOrgs } from '../composables/useOrgs'
 import GlassCard from '../components/glass/GlassCard.vue'
+import GlassSpotlightCard from '../components/glass/GlassSpotlightCard.vue'
 import GlassButton from '../components/glass/GlassButton.vue'
 import GlassBadge from '../components/glass/GlassBadge.vue'
 
@@ -63,25 +64,25 @@ function timeAgo(date) {
 
     <template v-else>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <GlassCard>
+        <GlassSpotlightCard glow-color="purple">
           <div class="text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider mb-2">Connected Orgs</div>
           <div class="text-3xl font-bold text-[var(--text-primary)]">{{ connectedOrgs }}</div>
           <router-link to="/orgs" class="text-xs text-[var(--color-primary)] hover:underline mt-2 inline-block">Manage orgs &rarr;</router-link>
-        </GlassCard>
+        </GlassSpotlightCard>
 
-        <GlassCard>
+        <GlassSpotlightCard glow-color="blue">
           <div class="text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider mb-2">Deploys (7 days)</div>
           <div class="text-3xl font-bold text-[var(--text-primary)]">{{ recentDeploys.length }}</div>
           <router-link to="/history" class="text-xs text-[var(--color-primary)] hover:underline mt-2 inline-block">View history &rarr;</router-link>
-        </GlassCard>
+        </GlassSpotlightCard>
 
-        <GlassCard>
+        <GlassSpotlightCard glow-color="green">
           <div class="text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider mb-2">Success Rate</div>
           <div class="text-3xl font-bold" :class="successRate === null ? 'text-[var(--text-muted)]' : successRate >= 80 ? 'text-[var(--color-success)]' : successRate >= 50 ? 'text-[var(--color-warning)]' : 'text-[var(--color-error)]'">
             {{ successRate === null ? '—' : `${successRate}%` }}
           </div>
           <span class="text-xs text-[var(--text-muted)] mt-2 inline-block">Based on last 7 days</span>
-        </GlassCard>
+        </GlassSpotlightCard>
       </div>
 
       <div class="flex gap-3 mb-8">

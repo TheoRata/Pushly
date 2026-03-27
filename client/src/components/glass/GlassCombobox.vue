@@ -1,14 +1,13 @@
 <script setup>
-import { ref, computed, nextTick, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 
 const props = defineProps({
-  options: { type: Array, required: true }, // [{ label, value, icon?, badge?, disabled? }]
+  options: { type: Array, required: true }, // [{ label, value, icon?, badge?, disabled?, subtitle? }]
   modelValue: { type: [String, Number], default: '' },
   placeholder: { type: String, default: 'Select...' },
   searchPlaceholder: { type: String, default: 'Search...' },
   label: { type: String, default: '' },
   showClear: { type: Boolean, default: false },
-  searchable: { type: Boolean, default: true },
   emptyText: { type: String, default: 'No results found.' },
 })
 
@@ -25,7 +24,11 @@ const selected = computed(() => props.options.find((o) => o.value === props.mode
 const filtered = computed(() => {
   if (!query.value) return props.options
   const q = query.value.toLowerCase()
-  return props.options.filter((o) => o.label.toLowerCase().includes(q))
+  return props.options.filter(
+    (o) =>
+      o.label.toLowerCase().includes(q) ||
+      (o.subtitle && o.subtitle.toLowerCase().includes(q))
+  )
 })
 
 function toggle() {
@@ -33,7 +36,7 @@ function toggle() {
   if (open.value) {
     query.value = ''
     highlightIndex.value = -1
-    if (props.searchable) nextTick(() => inputRef.value?.focus())
+    nextTick(() => inputRef.value?.focus())
   }
 }
 
@@ -82,25 +85,37 @@ function scrollToHighlighted() {
   })
 }
 
-watch(query, () => { highlightIndex.value = 0 })
+watch(query, () => {
+  highlightIndex.value = 0
+})
+
+// Close on click outside
+function onClickOutside(e) {
+  close()
+}
 </script>
 
 <template>
-  <div class="relative">
-    <label v-if="label" class="block text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider mb-1.5">{{ label }}</label>
+  <div class="relative" v-click-outside="onClickOutside">
+    <label v-if="label" class="block text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider mb-1.5">
+      {{ label }}
+    </label>
 
     <!-- Trigger -->
     <button
       type="button"
-      class="w-full flex items-center justify-between px-3 py-2 text-sm rounded-[var(--radius-md)] glass transition-all duration-200"
+      class="w-full flex items-center justify-between px-3 py-2 text-sm rounded-[var(--radius-md)] glass transition-all duration-200 cursor-pointer"
       :class="open ? 'border-[var(--color-primary-border)] glow-sm' : 'glass-hover'"
       @click="toggle"
     >
-      <span :class="selected ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'">
-        <span v-if="selected?.icon" class="mr-1.5">{{ selected.icon }}</span>
-        {{ selected?.label || placeholder }}
+      <span v-if="selected" class="flex items-center gap-2 truncate text-[var(--text-primary)]">
+        <span v-if="selected.icon" class="text-base">{{ selected.icon }}</span>
+        {{ selected.label }}
       </span>
+      <span v-else class="text-[var(--text-muted)]">{{ placeholder }}</span>
+
       <div class="flex items-center gap-1">
+        <!-- Clear button -->
         <span
           v-if="showClear && selected"
           class="p-0.5 rounded hover:bg-[var(--glass-bg-hover)] cursor-pointer"
@@ -110,6 +125,7 @@ watch(query, () => { highlightIndex.value = 0 })
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
           </svg>
         </span>
+        <!-- Chevrons -->
         <svg class="w-4 h-4 text-[var(--text-muted)] transition-transform" :class="open && 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m7 15 5 5 5-5M7 9l5-5 5 5" />
         </svg>
@@ -130,8 +146,8 @@ watch(query, () => { highlightIndex.value = 0 })
         class="absolute z-50 mt-1 w-full rounded-[var(--radius-lg)] border border-[var(--glass-border)] shadow-xl overflow-hidden"
         style="background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);"
       >
-        <!-- Search -->
-        <div v-if="searchable" class="p-2 border-b border-[var(--glass-border)]">
+        <!-- Search input -->
+        <div class="p-2 border-b border-[var(--glass-border)]">
           <div class="relative">
             <svg class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
@@ -147,7 +163,7 @@ watch(query, () => { highlightIndex.value = 0 })
           </div>
         </div>
 
-        <!-- List -->
+        <!-- Options list -->
         <div ref="listRef" class="max-h-56 overflow-y-auto p-1">
           <div v-if="filtered.length === 0" class="px-3 py-4 text-center text-sm text-[var(--text-muted)]">
             {{ emptyText }}
@@ -170,7 +186,7 @@ watch(query, () => { highlightIndex.value = 0 })
             @mousedown.prevent="selectOption(opt)"
             @mouseenter="highlightIndex = i"
           >
-            <!-- Check -->
+            <!-- Check indicator -->
             <span class="w-4 h-4 flex items-center justify-center flex-shrink-0">
               <svg
                 v-if="opt.value === modelValue"
@@ -181,9 +197,23 @@ watch(query, () => { highlightIndex.value = 0 })
               </svg>
             </span>
 
+            <!-- Icon -->
             <span v-if="opt.icon" class="text-base flex-shrink-0">{{ opt.icon }}</span>
-            <span class="flex-1 text-left truncate">{{ opt.label }}</span>
-            <span v-if="opt.badge" class="text-[10px] px-1.5 py-0.5 rounded-[var(--radius-sm)] bg-[var(--glass-bg-hover)] text-[var(--text-muted)]">{{ opt.badge }}</span>
+
+            <!-- Label + subtitle -->
+            <div class="flex-1 text-left min-w-0">
+              <div class="truncate">{{ opt.label }}</div>
+              <div v-if="opt.subtitle" class="text-xs text-[var(--text-muted)] truncate">{{ opt.subtitle }}</div>
+            </div>
+
+            <!-- Badge -->
+            <span
+              v-if="opt.badge"
+              class="text-[10px] px-1.5 py-0.5 rounded-[var(--radius-sm)] flex-shrink-0"
+              :class="opt.badgeClass || 'bg-[var(--glass-bg-hover)] text-[var(--text-muted)]'"
+            >
+              {{ opt.badge }}
+            </span>
           </button>
         </div>
       </div>

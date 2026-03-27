@@ -12,6 +12,10 @@ defineProps({
 
 defineEmits(['refresh', 'reconnect', 'remove'])
 
+function openOrg(url) {
+  window.open(url, '_blank')
+}
+
 function statusColor(status) {
   switch (status) {
     case 'connected': return 'bg-[var(--color-success)]'
@@ -75,6 +79,17 @@ function formatTime(dateStr) {
 
     <!-- Actions -->
     <div class="flex items-center gap-2">
+      <GlassButton
+        v-if="org.instanceUrl && org.status === 'connected'"
+        variant="primary"
+        size="sm"
+        @click="openOrg(org.instanceUrl)"
+      >
+        <svg class="w-3.5 h-3.5 inline-block mr-1 -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+        </svg>
+        Open
+      </GlassButton>
       <GlassButton variant="ghost" size="sm" @click="$emit('refresh', org.alias)">
         Refresh
       </GlassButton>

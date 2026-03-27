@@ -7,6 +7,7 @@ import ConnectOrgModal from '../components/ConnectOrgModal.vue'
 import ConfirmModal from '../components/ConfirmModal.vue'
 import GlassCard from '../components/glass/GlassCard.vue'
 import GlassButton from '../components/glass/GlassButton.vue'
+import GlassHoverButton from '../components/glass/GlassHoverButton.vue'
 
 const { orgs, loading, refresh, removeOrg } = useOrgs()
 const api = useApi()
@@ -88,9 +89,7 @@ function cancelRemove() {
           To get started, connect your first Salesforce org.<br />
           You'll log in through Salesforce — we never see your password.
         </p>
-        <GlassButton variant="primary" size="lg" @click="openConnect">
-          Connect a Salesforce Org
-        </GlassButton>
+        <GlassHoverButton text="Connect a Salesforce Org" @click="openConnect" />
       </GlassCard>
     </div>
 
@@ -99,12 +98,7 @@ function cancelRemove() {
       <!-- Page header -->
       <div class="flex items-center justify-between mb-6">
         <h1 class="text-2xl font-bold text-[var(--text-primary)]">Connected Orgs</h1>
-        <GlassButton variant="primary" size="md" @click="openConnect">
-          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
-          Connect Org
-        </GlassButton>
+        <GlassHoverButton text="Connect Org" @click="openConnect" />
       </div>
 
       <!-- Prompt for second org -->

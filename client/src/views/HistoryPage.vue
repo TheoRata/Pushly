@@ -6,6 +6,7 @@ import GlassCard from '../components/glass/GlassCard.vue'
 import GlassButton from '../components/glass/GlassButton.vue'
 import GlassBadge from '../components/glass/GlassBadge.vue'
 import GlassToggle from '../components/glass/GlassToggle.vue'
+import GlassPagination from '../components/glass/GlassPagination.vue'
 
 const { get, post } = useApi()
 
@@ -14,6 +15,9 @@ const records = ref([])
 const loading = ref(false)
 const error = ref(null)
 
+// Search
+const searchQuery = ref('')
+
 // Filters
 const filterUser = ref('')
 const filterOrg = ref('')
@@ -21,6 +25,11 @@ const filterStatus = ref('all')
 const filterRange = ref('30d')
 const customFrom = ref('')
 const customTo = ref('')
+const showFilters = ref(false)
+
+// Pagination
+const currentPage = ref(1)
+const ITEMS_PER_PAGE = 10
 
 // Row expansion
 const expandedRowId = ref(null)
@@ -43,6 +52,50 @@ const uniqueOrgs = computed(() => {
     if (r.targetOrg) orgs.add(r.targetOrg)
   })
   return [...orgs].sort()
+})
+
+const uniqueStatuses = computed(() => {
+  const statuses = new Set(records.value.map(r => r.status).filter(Boolean))
+  return [...statuses].sort()
+})
+
+const filteredRecords = computed(() => {
+  const query = searchQuery.value.toLowerCase()
+  return records.value.filter(r => {
+    // Search
+    if (query) {
+      const matchSearch =
+        (r.user || '').toLowerCase().includes(query) ||
+        (r.sourceOrg || '').toLowerCase().includes(query) ||
+        (r.targetOrg || '').toLowerCase().includes(query) ||
+        (r.error || '').toLowerCase().includes(query) ||
+        (r.name || '').toLowerCase().includes(query) ||
+        operationLabel(r).toLowerCase().includes(query)
+      if (!matchSearch) return false
+    }
+    return true
+  })
+})
+
+const totalPages = computed(() => Math.ceil(filteredRecords.value.length / ITEMS_PER_PAGE))
+
+const paginatedRecords = computed(() => {
+  const start = (currentPage.value - 1) * ITEMS_PER_PAGE
+  return filteredRecords.value.slice(start, start + ITEMS_PER_PAGE)
+})
+
+// Reset to page 1 when filters change
+watch([searchQuery, filterUser, filterOrg, filterStatus, filterRange], () => {
+  currentPage.value = 1
+})
+
+const activeFilterCount = computed(() => {
+  let count = 0
+  if (filterUser.value) count++
+  if (filterOrg.value) count++
+  if (filterStatus.value !== 'all') count++
+  if (filterRange.value !== '30d') count++
+  return count
 })
 
 // --- Helpers ---
@@ -117,6 +170,21 @@ function orgFlow(record) {
   return { source: record.sourceOrg || '-', target: record.targetOrg || '-' }
 }
 
+function clearFilters() {
+  filterUser.value = ''
+  filterOrg.value = ''
+  filterStatus.value = 'all'
+  filterRange.value = '30d'
+  customFrom.value = ''
+  customTo.value = ''
+}
+
+function toggleFilterValue(category, value) {
+  if (category === 'user') filterUser.value = filterUser.value === value ? '' : value
+  else if (category === 'org') filterOrg.value = filterOrg.value === value ? '' : value
+  else if (category === 'status') filterStatus.value = filterStatus.value === value ? 'all' : value
+}
+
 // --- API ---
 async function fetchHistory() {
   loading.value = true
@@ -153,7 +221,6 @@ async function confirmRollback() {
     await post(`/deploy/${rollbackTarget.value.id}/rollback`)
     showRollbackModal.value = false
     rollbackTarget.value = null
-    // Refresh history
     await fetchHistory()
   } catch (err) {
     error.value = err.message || 'Rollback failed'
@@ -169,286 +236,366 @@ function cancelRollback() {
 
 // --- Lifecycle ---
 onMounted(fetchHistory)
-
-// Refetch when filters change (except custom date inputs which use a button)
 watch([filterUser, filterOrg, filterStatus, filterRange], fetchHistory)
 </script>
 
 <template>
-  <div class="max-w-6xl mx-auto px-6 py-8">
-    <!-- Page Header -->
-    <div class="mb-8">
-      <h1 class="text-2xl font-bold text-[var(--text-primary)]">Deployment History</h1>
-      <p class="mt-1 text-sm text-[var(--text-secondary)]">Shared team deployment log. View past retrieve and deploy operations.</p>
-    </div>
-
-    <!-- Filter Bar -->
-    <GlassCard padding="md" class="mb-6">
-      <div class="flex flex-wrap items-end gap-4">
-        <!-- By Person -->
-        <div class="flex flex-col gap-1.5">
-          <label class="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">Person</label>
-          <select
-            v-model="filterUser"
-            class="px-3 py-1.5 rounded-[var(--radius-md)] bg-[var(--glass-bg)] border border-[var(--glass-border)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--color-primary)]/50 transition-colors cursor-pointer"
-          >
-            <option value="">All users</option>
-            <option v-for="u in uniqueUsers" :key="u" :value="u">{{ u }}</option>
-          </select>
+  <div class="h-[calc(100vh-3.5rem)] flex flex-col">
+    <!-- Header Bar -->
+    <div class="border-b border-[var(--glass-border)] p-6" style="background: var(--glass-bg);">
+      <div class="max-w-7xl mx-auto space-y-4">
+        <div>
+          <h1 class="text-2xl font-semibold text-[var(--text-primary)]">Logs</h1>
+          <p class="text-sm text-[var(--text-secondary)]">
+            {{ filteredRecords.length }} of {{ records.length }} logs
+          </p>
         </div>
 
-        <!-- By Org -->
-        <div class="flex flex-col gap-1.5">
-          <label class="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">Org</label>
-          <select
-            v-model="filterOrg"
-            class="px-3 py-1.5 rounded-[var(--radius-md)] bg-[var(--glass-bg)] border border-[var(--glass-border)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--color-primary)]/50 transition-colors cursor-pointer"
-          >
-            <option value="">All orgs</option>
-            <option v-for="o in uniqueOrgs" :key="o" :value="o">{{ o }}</option>
-          </select>
-        </div>
-
-        <!-- By Status -->
-        <div class="flex flex-col gap-1.5">
-          <label class="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">Status</label>
-          <GlassToggle
-            :options="[{ label: 'All', value: 'all' }, { label: 'Passed', value: 'success' }, { label: 'Failed', value: 'failed' }]"
-            v-model="filterStatus"
-          />
-        </div>
-
-        <!-- By Date Range -->
-        <div class="flex flex-col gap-1.5">
-          <label class="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">Date Range</label>
-          <GlassToggle
-            :options="[{ label: '7d', value: '7d' }, { label: '30d', value: '30d' }, { label: '90d', value: '90d' }, { label: 'Custom', value: 'custom' }]"
-            v-model="filterRange"
-          />
-        </div>
-
-        <!-- Custom Date Inputs -->
-        <template v-if="filterRange === 'custom'">
-          <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">From</label>
-            <input
-              v-model="customFrom"
-              type="date"
-              class="px-3 py-1.5 rounded-[var(--radius-md)] bg-[var(--glass-bg)] border border-[var(--glass-border)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--color-primary)]/50 transition-colors"
-            />
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">To</label>
-            <input
-              v-model="customTo"
-              type="date"
-              class="px-3 py-1.5 rounded-[var(--radius-md)] bg-[var(--glass-bg)] border border-[var(--glass-border)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--color-primary)]/50 transition-colors"
-            />
-          </div>
-          <GlassButton variant="primary" size="sm" class="self-end" @click="fetchHistory">
-            Apply
-          </GlassButton>
-        </template>
-
-        <!-- Refresh -->
-        <GlassButton
-          variant="ghost"
-          size="sm"
-          class="ml-auto self-end"
-          :disabled="loading"
-          @click="fetchHistory"
-        >
-          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-          </svg>
-          <span v-if="loading">Loading...</span>
-          <span v-else>Refresh</span>
-        </GlassButton>
-      </div>
-    </GlassCard>
-
-    <!-- Error -->
-    <div v-if="error" class="mb-4 px-4 py-3 rounded-[var(--radius-md)] bg-[var(--color-error-bg)] border border-[var(--color-error-border)] text-sm text-[var(--color-error)]">
-      {{ error }}
-    </div>
-
-    <!-- Loading State -->
-    <div v-if="loading && records.length === 0" class="text-center py-16">
-      <div class="inline-block w-6 h-6 border-2 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" />
-      <p class="mt-3 text-sm text-[var(--text-secondary)]">Loading history...</p>
-    </div>
-
-    <!-- Empty State -->
-    <GlassCard v-else-if="!loading && records.length === 0" padding="lg" class="text-center">
-      <div class="w-12 h-12 mx-auto mb-4 rounded-full bg-[var(--glass-bg)] flex items-center justify-center">
-        <svg class="w-6 h-6 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-        </svg>
-      </div>
-      <p class="text-[var(--text-secondary)]">No deployments yet.</p>
-      <p class="mt-1 text-sm text-[var(--text-muted)]">Use the Retrieve or Deploy pages to get started.</p>
-    </GlassCard>
-
-    <!-- History Table -->
-    <div v-else class="glass rounded-[var(--radius-lg)] overflow-hidden">
-      <!-- Table Header -->
-      <div class="grid grid-cols-[48px_1fr_100px_100px_1.2fr_140px_80px_140px] gap-2 px-4 py-3 border-b border-[var(--glass-border)] text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide sticky top-0 bg-[var(--bg-primary)] z-10">
-        <div>Status</div>
-        <div>User</div>
-        <div>Operation</div>
-        <div>Components</div>
-        <div>Source / Target</div>
-        <div>Date</div>
-        <div>Duration</div>
-        <div class="text-right">Actions</div>
-      </div>
-
-      <!-- Table Rows -->
-      <div v-for="record in records" :key="record.id">
-        <!-- Main Row -->
-        <div
-          class="grid grid-cols-[48px_1fr_100px_100px_1.2fr_140px_80px_140px] gap-2 px-4 py-3 items-center border-b border-[var(--glass-border)] transition-colors cursor-pointer text-sm hover:bg-[var(--glass-bg-hover)]"
-          :class="{
-            'border-l-2 border-l-[var(--color-primary)]': isProductionOrg(record),
-          }"
-          @click="toggleRow(record.id)"
-        >
-          <!-- Status Icon -->
-          <div class="flex items-center justify-center">
-            <span v-if="record.status === 'success'" class="text-[var(--color-success)]">
-              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-              </svg>
-            </span>
-            <span v-else-if="record.status === 'failed'" class="text-[var(--color-error)]">
-              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-              </svg>
-            </span>
-            <span v-else class="text-[var(--color-warning)]">
-              <div class="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-            </span>
-          </div>
-
-          <!-- User -->
-          <div class="text-[var(--text-primary)] truncate">{{ record.user || 'Unknown' }}</div>
-
-          <!-- Operation -->
-          <div>
-            <GlassBadge :variant="operationBadgeVariant(record)" size="md">
-              {{ operationLabel(record) }}
-            </GlassBadge>
-          </div>
-
-          <!-- Components -->
-          <div class="text-[var(--text-secondary)]">
-            {{ (record.components || []).length }} item{{ (record.components || []).length !== 1 ? 's' : '' }}
-          </div>
-
-          <!-- Source -> Target -->
-          <div class="flex items-center gap-1.5 text-[var(--text-secondary)] truncate">
-            <span class="truncate">{{ orgFlow(record).source }}</span>
-            <svg class="w-3.5 h-3.5 flex-shrink-0 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+        <div class="flex gap-2">
+          <!-- Search -->
+          <div class="relative flex-1">
+            <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
             </svg>
-            <span class="truncate">{{ orgFlow(record).target }}</span>
+            <input
+              v-model="searchQuery"
+              placeholder="Search logs by user, org, or operation..."
+              class="h-9 w-full pl-9 pr-3 text-sm rounded-[var(--radius-md)] bg-[var(--glass-bg)] border border-[var(--glass-border)] text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none transition-all duration-200 focus:border-[var(--color-primary-border)] focus:shadow-[0_0_8px_var(--color-primary-glow)]"
+              style="backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur)"
+            />
           </div>
 
-          <!-- Date -->
-          <div class="text-[var(--text-secondary)]" :title="absoluteDate(record.startedAt)">
-            {{ relativeTime(record.startedAt) }}
-          </div>
-
-          <!-- Duration -->
-          <div class="text-[var(--text-muted)]">
-            {{ formatDuration(record.startedAt, record.completedAt) }}
-          </div>
-
-          <!-- Actions -->
-          <div class="flex items-center justify-end gap-2" @click.stop>
-            <GlassButton variant="ghost" size="sm" @click="toggleRow(record.id)">
-              Details
-            </GlassButton>
-            <GlassButton
-              v-if="record.type === 'deploy' && record.status === 'success'"
-              variant="danger"
-              size="sm"
-              @click="openRollback(record)"
-            >
-              Rollback
-            </GlassButton>
-          </div>
-        </div>
-
-        <!-- Expanded Row Details -->
-        <Transition
-          enter-active-class="transition-all duration-200 ease-out"
-          enter-from-class="opacity-0 max-h-0"
-          enter-to-class="opacity-100 max-h-96"
-          leave-active-class="transition-all duration-150 ease-in"
-          leave-from-class="opacity-100 max-h-96"
-          leave-to-class="opacity-0 max-h-0"
-        >
-          <div
-            v-if="expandedRowId === record.id"
-            class="overflow-hidden border-b border-[var(--glass-border)] bg-[var(--glass-bg)]"
+          <!-- Filter Toggle -->
+          <GlassButton
+            :variant="showFilters ? 'primary' : 'secondary'"
+            size="sm"
+            class="relative h-9 px-3"
+            @click="showFilters = !showFilters"
           >
-            <div class="px-6 py-4 space-y-3">
-              <!-- Operation ID -->
-              <div class="flex items-center gap-2 text-xs">
-                <span class="text-[var(--text-muted)]">ID:</span>
-                <span class="font-mono text-[var(--text-secondary)]">{{ record.id }}</span>
-              </div>
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 0 1-.659 1.591l-5.432 5.432a2.25 2.25 0 0 0-.659 1.591v2.927a2.25 2.25 0 0 1-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 0 0-.659-1.591L3.659 7.409A2.25 2.25 0 0 1 3 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0 1 12 3Z" />
+            </svg>
+            <!-- Active filter count badge -->
+            <span
+              v-if="activeFilterCount > 0"
+              class="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--color-error)] text-[9px] font-bold text-white"
+            >
+              {{ activeFilterCount }}
+            </span>
+          </GlassButton>
 
-              <!-- Timestamps -->
-              <div class="flex items-center gap-6 text-xs">
-                <div>
-                  <span class="text-[var(--text-muted)]">Started: </span>
-                  <span class="text-[var(--text-secondary)]">{{ absoluteDate(record.startedAt) }}</span>
-                </div>
-                <div v-if="record.completedAt">
-                  <span class="text-[var(--text-muted)]">Completed: </span>
-                  <span class="text-[var(--text-secondary)]">{{ absoluteDate(record.completedAt) }}</span>
-                </div>
-              </div>
+          <!-- Refresh -->
+          <GlassButton
+            variant="ghost"
+            size="sm"
+            class="h-9"
+            :disabled="loading"
+            @click="fetchHistory"
+          >
+            <svg class="w-4 h-4" :class="loading && 'animate-spin'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+            </svg>
+          </GlassButton>
+        </div>
+      </div>
+    </div>
 
-              <!-- Components List -->
-              <div v-if="record.components && record.components.length > 0">
-                <p class="text-xs font-medium text-[var(--text-muted)] mb-1.5">Components ({{ record.components.length }}):</p>
-                <div class="flex flex-wrap gap-1.5">
-                  <span
-                    v-for="(comp, i) in record.components"
-                    :key="i"
-                    class="inline-block px-2 py-0.5 rounded-[var(--radius-sm)] bg-[var(--glass-bg)] border border-[var(--glass-border)] text-xs text-[var(--text-secondary)] font-mono"
-                  >
-                    {{ typeof comp === 'string' ? comp : comp.fullName || comp.type + ':' + comp.name }}
-                  </span>
-                </div>
-              </div>
+    <!-- Main Content: Filter Sidebar + Log Rows -->
+    <div class="flex flex-1 overflow-hidden">
+      <!-- Filter Sidebar (slides in/out) -->
+      <Transition
+        enter-active-class="transition-all duration-200 ease-out"
+        enter-from-class="w-0 opacity-0"
+        enter-to-class="w-[280px] opacity-100"
+        leave-active-class="transition-all duration-200 ease-in"
+        leave-from-class="w-[280px] opacity-100"
+        leave-to-class="w-0 opacity-0"
+      >
+        <div
+          v-if="showFilters"
+          class="w-[280px] flex-shrink-0 overflow-hidden border-r border-[var(--glass-border)]"
+          style="background: var(--glass-bg);"
+        >
+          <div class="h-full overflow-y-auto p-4 space-y-6">
+            <!-- Header -->
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-semibold text-[var(--text-primary)]">Filters</h3>
+              <GlassButton v-if="activeFilterCount > 0" variant="ghost" size="sm" @click="clearFilters">
+                Clear
+              </GlassButton>
+            </div>
 
-              <!-- Error Details -->
-              <div v-if="record.error" class="mt-2">
-                <p class="text-xs font-medium text-[var(--color-error)] mb-1">Error:</p>
-                <pre class="text-xs text-[var(--color-error)]/80 bg-[var(--color-error-bg)] border border-[var(--color-error-border)] rounded-[var(--radius-md)] p-3 overflow-x-auto whitespace-pre-wrap">{{ record.error }}</pre>
+            <!-- Status -->
+            <div class="space-y-3">
+              <p class="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">Status</p>
+              <div class="space-y-2">
+                <button
+                  v-for="status in ['success', 'failed']"
+                  :key="status"
+                  class="flex w-full items-center justify-between gap-2 border rounded-[var(--radius-md)] px-3 py-2 text-sm transition-all duration-150"
+                  :class="
+                    filterStatus === status
+                      ? 'border-[var(--color-primary-border)] bg-[var(--color-primary-bg)] text-[var(--color-primary)]'
+                      : 'border-[var(--glass-border)] text-[var(--text-secondary)] hover:border-[var(--color-primary-border)]/40 hover:bg-[var(--glass-bg-hover)]'
+                  "
+                  @click="toggleFilterValue('status', status)"
+                >
+                  <span class="capitalize">{{ status }}</span>
+                  <svg v-if="filterStatus === status" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                  </svg>
+                </button>
               </div>
+            </div>
 
-              <!-- Failed Components -->
-              <div v-if="record.failedComponents && record.failedComponents.length > 0" class="mt-2">
-                <p class="text-xs font-medium text-[var(--color-error)] mb-1.5">Failed Components:</p>
-                <div class="space-y-1">
-                  <div
-                    v-for="(fc, i) in record.failedComponents"
-                    :key="i"
-                    class="text-xs text-[var(--text-secondary)] bg-[var(--color-error-bg)] border border-[var(--color-error-border)] rounded-[var(--radius-sm)] px-2 py-1"
-                  >
-                    <span class="font-mono">{{ fc.fullName || fc.componentType }}</span>
-                    <span v-if="fc.problem" class="text-[var(--color-error)]/70 ml-2">{{ fc.problem }}</span>
-                  </div>
-                </div>
+            <!-- User -->
+            <div v-if="uniqueUsers.length > 0" class="space-y-3">
+              <p class="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">User</p>
+              <div class="space-y-2">
+                <button
+                  v-for="user in uniqueUsers"
+                  :key="user"
+                  class="flex w-full items-center justify-between gap-2 border rounded-[var(--radius-md)] px-3 py-2 text-sm transition-all duration-150"
+                  :class="
+                    filterUser === user
+                      ? 'border-[var(--color-primary-border)] bg-[var(--color-primary-bg)] text-[var(--color-primary)]'
+                      : 'border-[var(--glass-border)] text-[var(--text-secondary)] hover:border-[var(--color-primary-border)]/40 hover:bg-[var(--glass-bg-hover)]'
+                  "
+                  @click="toggleFilterValue('user', user)"
+                >
+                  <span>{{ user }}</span>
+                  <svg v-if="filterUser === user" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Org -->
+            <div v-if="uniqueOrgs.length > 0" class="space-y-3">
+              <p class="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">Org</p>
+              <div class="space-y-2">
+                <button
+                  v-for="org in uniqueOrgs"
+                  :key="org"
+                  class="flex w-full items-center justify-between gap-2 border rounded-[var(--radius-md)] px-3 py-2 text-sm transition-all duration-150"
+                  :class="
+                    filterOrg === org
+                      ? 'border-[var(--color-primary-border)] bg-[var(--color-primary-bg)] text-[var(--color-primary)]'
+                      : 'border-[var(--glass-border)] text-[var(--text-secondary)] hover:border-[var(--color-primary-border)]/40 hover:bg-[var(--glass-bg-hover)]'
+                  "
+                  @click="toggleFilterValue('org', org)"
+                >
+                  <span>{{ org }}</span>
+                  <svg v-if="filterOrg === org" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Date Range -->
+            <div class="space-y-3">
+              <p class="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">Date Range</p>
+              <div class="space-y-2">
+                <button
+                  v-for="range in ['7d', '30d', '90d']"
+                  :key="range"
+                  class="flex w-full items-center justify-between gap-2 border rounded-[var(--radius-md)] px-3 py-2 text-sm transition-all duration-150"
+                  :class="
+                    filterRange === range
+                      ? 'border-[var(--color-primary-border)] bg-[var(--color-primary-bg)] text-[var(--color-primary)]'
+                      : 'border-[var(--glass-border)] text-[var(--text-secondary)] hover:border-[var(--color-primary-border)]/40 hover:bg-[var(--glass-bg-hover)]'
+                  "
+                  @click="filterRange = filterRange === range ? '30d' : range"
+                >
+                  <span>Last {{ range }}</span>
+                  <svg v-if="filterRange === range" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                  </svg>
+                </button>
               </div>
             </div>
           </div>
-        </Transition>
+        </div>
+      </Transition>
+
+      <!-- Log Rows -->
+      <div class="flex-1">
+        <!-- Loading -->
+        <div v-if="loading && records.length === 0" class="flex items-center justify-center py-20">
+          <div class="inline-block w-6 h-6 border-2 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" />
+        </div>
+
+        <!-- Empty -->
+        <div v-else-if="filteredRecords.length === 0" class="p-12 text-center">
+          <p class="text-[var(--text-muted)]">No logs match your filters.</p>
+        </div>
+
+        <!-- Rows -->
+        <div v-else class="divide-y divide-[var(--glass-border)]">
+          <TransitionGroup
+            enter-active-class="transition-all duration-200 ease-out"
+            enter-from-class="opacity-0 -translate-y-2"
+            enter-to-class="opacity-100 translate-y-0"
+            leave-active-class="transition-all duration-150 ease-in"
+            leave-from-class="opacity-100 translate-y-0"
+            leave-to-class="opacity-0 -translate-y-2"
+          >
+            <div v-for="record in paginatedRecords" :key="record.id">
+              <!-- Row Button -->
+              <button
+                class="w-full p-4 text-left transition-colors duration-150 hover:bg-[var(--glass-bg-hover)]"
+                @click="toggleRow(record.id)"
+              >
+                <div class="flex items-center gap-4">
+                  <!-- Chevron -->
+                  <svg
+                    class="h-4 w-4 flex-shrink-0 text-[var(--text-muted)] transition-transform duration-200"
+                    :class="expandedRowId === record.id && 'rotate-180'"
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                  </svg>
+
+                  <!-- Level/Status Badge -->
+                  <GlassBadge
+                    :variant="record.status === 'success' ? 'success' : record.status === 'failed' ? 'error' : 'warning'"
+                    size="md"
+                    class="flex-shrink-0 capitalize"
+                  >
+                    {{ record.status || 'pending' }}
+                  </GlassBadge>
+
+                  <!-- Time -->
+                  <time class="w-20 flex-shrink-0 font-mono text-xs text-[var(--text-muted)]">
+                    {{ relativeTime(record.startedAt) }}
+                  </time>
+
+                  <!-- Operation Type -->
+                  <GlassBadge :variant="operationBadgeVariant(record)" size="sm" class="flex-shrink-0">
+                    {{ operationLabel(record) }}
+                  </GlassBadge>
+
+                  <!-- User / Service -->
+                  <span class="flex-shrink-0 min-w-max text-sm font-medium text-[var(--text-primary)]">
+                    {{ record.user || 'Unknown' }}
+                  </span>
+
+                  <!-- Message / Flow -->
+                  <p class="flex-1 truncate text-sm text-[var(--text-secondary)]">
+                    {{ orgFlow(record).source }} → {{ orgFlow(record).target }}
+                  </p>
+
+                  <!-- Components count -->
+                  <span class="flex-shrink-0 font-mono text-sm font-semibold text-[var(--text-secondary)]">
+                    {{ (record.components || []).length }} items
+                  </span>
+
+                  <!-- Duration -->
+                  <span class="w-16 flex-shrink-0 text-right font-mono text-xs text-[var(--text-muted)]">
+                    {{ formatDuration(record.startedAt, record.completedAt) }}
+                  </span>
+                </div>
+              </button>
+
+              <!-- Expanded Details -->
+              <Transition
+                enter-active-class="transition-all duration-200 ease-out"
+                enter-from-class="opacity-0 max-h-0"
+                enter-to-class="opacity-100 max-h-[600px]"
+                leave-active-class="transition-all duration-150 ease-in"
+                leave-from-class="opacity-100 max-h-[600px]"
+                leave-to-class="opacity-0 max-h-0"
+              >
+                <div
+                  v-if="expandedRowId === record.id"
+                  class="overflow-hidden border-t border-[var(--glass-border)]"
+                  style="background: var(--glass-bg);"
+                >
+                  <div class="space-y-4 p-4">
+                    <!-- Message / Error -->
+                    <div v-if="record.error">
+                      <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">Error</p>
+                      <pre class="rounded-[var(--radius-md)] bg-[var(--color-error-bg)] border border-[var(--color-error-border)] p-3 font-mono text-sm text-[var(--color-error)] whitespace-pre-wrap overflow-x-auto">{{ record.error }}</pre>
+                    </div>
+
+                    <!-- Details Grid -->
+                    <div class="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">Duration</p>
+                        <p class="font-mono text-[var(--text-primary)]">{{ formatDuration(record.startedAt, record.completedAt) }}</p>
+                      </div>
+                      <div>
+                        <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">Timestamp</p>
+                        <p class="font-mono text-xs text-[var(--text-primary)]">{{ absoluteDate(record.startedAt) }}</p>
+                      </div>
+                      <div>
+                        <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">Operation ID</p>
+                        <p class="font-mono text-xs text-[var(--text-secondary)]">{{ record.id }}</p>
+                      </div>
+                      <div>
+                        <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">Flow</p>
+                        <p class="font-mono text-xs text-[var(--text-secondary)]">{{ orgFlow(record).source }} → {{ orgFlow(record).target }}</p>
+                      </div>
+                    </div>
+
+                    <!-- Components Tags -->
+                    <div v-if="record.components && record.components.length > 0">
+                      <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">Components</p>
+                      <div class="flex flex-wrap gap-2">
+                        <span
+                          v-for="(comp, i) in record.components"
+                          :key="i"
+                          class="inline-block px-2 py-0.5 rounded-[var(--radius-sm)] border border-[var(--glass-border)] text-xs text-[var(--text-secondary)] font-mono"
+                          style="background: var(--glass-bg);"
+                        >
+                          {{ typeof comp === 'string' ? comp : comp.fullName || comp.type + ':' + comp.name }}
+                        </span>
+                      </div>
+                    </div>
+
+                    <!-- Failed Components -->
+                    <div v-if="record.failedComponents && record.failedComponents.length > 0">
+                      <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-error)]">Failed Components</p>
+                      <div class="space-y-1">
+                        <div
+                          v-for="(fc, i) in record.failedComponents"
+                          :key="i"
+                          class="text-xs text-[var(--text-secondary)] bg-[var(--color-error-bg)] border border-[var(--color-error-border)] rounded-[var(--radius-sm)] px-2 py-1"
+                        >
+                          <span class="font-mono">{{ fc.fullName || fc.componentType }}</span>
+                          <span v-if="fc.problem" class="text-[var(--color-error)] ml-2">{{ fc.problem }}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div v-if="record.type === 'deploy' && record.status === 'success'" class="pt-2" @click.stop>
+                      <GlassButton variant="danger" size="sm" @click="openRollback(record)">
+                        Rollback
+                      </GlassButton>
+                    </div>
+                  </div>
+                </div>
+              </Transition>
+            </div>
+          </TransitionGroup>
+        </div>
+
+        <!-- Pagination -->
+        <div v-if="totalPages > 1" class="border-t border-[var(--glass-border)] p-4">
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-[var(--text-muted)]">
+              {{ (currentPage - 1) * ITEMS_PER_PAGE + 1 }}–{{ Math.min(currentPage * ITEMS_PER_PAGE, filteredRecords.length) }} of {{ filteredRecords.length }} records
+            </span>
+            <GlassPagination
+              v-model:current-page="currentPage"
+              :total-pages="totalPages"
+              :items-to-display="5"
+            />
+          </div>
+        </div>
       </div>
     </div>
 

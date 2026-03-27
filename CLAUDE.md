@@ -53,9 +53,10 @@ After changing frontend code, you must `npm run build` if testing via the produc
 
 ### Frontend (`client/src/`)
 
-- **Views (4 pages):** OrgsPage, RetrievePage (4-step wizard), DeployPage (5-step wizard), HistoryPage
-- **Composables:** `useApi` (fetch wrapper), `useWebSocket` (singleton connection, auto-reconnect), `useOrgs` (shared reactive state), `useMetadata` (progressive loading per category), `useToast`
-- **Key components:** `MetadataTree` (searchable categorized component browser with bundle support), `ProgressTracker` (WebSocket-driven per-component status), `WizardStepper` (reusable step indicator)
+- **Views (5 pages):** DashboardPage (stats + recent activity), OrgsPage, RetrievePage (4-step wizard), DeployPage (5-step wizard), HistoryPage (paginated)
+- **Composables:** `useApi` (fetch wrapper), `useWebSocket` (singleton connection, auto-reconnect), `useOrgs` (shared reactive state), `useMetadata` (progressive loading, refresh with cache bypass), `usePagination` (numbered page logic), `useToast`
+- **Glass design system** (`components/glass/`): 13 reusable components — GlassCard, GlassButton, GlassInput, GlassBadge, GlassToggle, GlassModal, GlassDropdown, GlassCombobox, GlassTable, GlassPillStepper, GlassPagination, GlassHoverButton, GlassSpotlightCard
+- **Key components:** `TopNavBar` (fixed top nav with SpecialText brand), `MetadataTree` (searchable categorized component browser with bundle support, refresh all/open), `ProgressTracker` (WebSocket-driven per-component status), `OrgDropdown` (searchable combobox with exclude prop)
 
 ### Key Patterns
 
@@ -64,13 +65,17 @@ After changing frontend code, you must `npm run build` if testing via the produc
 - The `sf org list --json` response has `{ other, nonScratchOrgs, scratchOrgs, sandboxes }` — all must be merged and deduplicated
 - API responses are wrapped (e.g., `{ orgs: [...] }`) — composables must extract the inner array
 - Deploy wizard step 4 (Validate) is mandatory — cannot skip to deploy
+- Metadata batch-components endpoint caches results on disk. Pass `{ skipCache: true }` in POST body to force fresh retrieval from SF CLI.
+- `OrgDropdown` accepts an `exclude` prop to prevent selecting the same org as source and target in DeployPage.
 
 ## Theme
 
-Dark developer theme. CSS variables defined in `client/src/assets/main.css`:
-- Background: `--bg-base: #0f0f1a`, `--bg-primary: #1e1e2e`, `--bg-surface: #252536`
-- Accents: `--color-primary: #6366f1` (indigo), `--color-secondary: #a855f7` (purple)
-- Status: `--color-success: #4ade80`, `--color-error: #f87171`, `--color-warning: #fbbf24`
+Blue theme with light/dark mode support. `<html class="dark">` defaults to dark mode. CSS variables in `client/src/assets/main.css`:
+- Light: `--background: #ffffff`, `--primary: #3b82f6`, `--foreground: #333333`
+- Dark: `--background: #171717`, `--primary: #3b82f6`, `--foreground: #e5e5e5`
+- Glass system: `--glass-bg`, `--glass-border`, `--glass-blur` adapt per mode
+- Status: `--color-success: #4ade80`, `--color-error: #ef4444`, `--color-warning: #fbbf24`
+- `@theme inline` block registers all tokens with Tailwind CSS v4
 
 ## Prerequisites
 
@@ -91,3 +96,4 @@ Vitest with ES modules. Tests use temp directories (`fs.mkdtempSync`). The `sf-c
 - After frontend changes, `npm run build` is required if testing via production server (`npm start`). The Vite dev server (`npm run dev`) hot-reloads but runs on a different port.
 - Port 3000 may be occupied by other local apps. The server auto-detects (3000-3010) but the user may see a different app if they navigate to 3000 manually.
 - Users who authenticated via VS Code Salesforce Extension already have orgs in `sf org list` — the app should show these automatically, no re-auth needed.
+- **Server has no hot-reload.** After changing backend code (`server/`), you must restart the server. The Vite dev server only hot-reloads frontend code.

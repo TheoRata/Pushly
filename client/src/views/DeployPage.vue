@@ -159,6 +159,11 @@ const targetOrg = ref('')
 const healthStatus = ref(null) // null | 'checking' | 'healthy' | 'expired'
 const healthError = ref('')
 
+// Clear target if user changes source to match it
+watch(sourceOrg, (src) => {
+  if (src && src === targetOrg.value) targetOrg.value = ''
+})
+
 const targetOrgData = computed(() => orgs.value.find((o) => o.alias === targetOrg.value))
 const isProduction = computed(() => targetOrgData.value?.type === 'production')
 
@@ -644,7 +649,7 @@ function formatDate(dateStr) {
           </p>
 
           <div class="max-w-sm mb-5">
-            <OrgDropdown v-model="targetOrg" label="Target Org" />
+            <OrgDropdown v-model="targetOrg" label="Target Org" :exclude="sourceOrg" />
           </div>
 
           <!-- Health check status -->

@@ -226,7 +226,7 @@ router.get('/:orgAlias/search', async (req, res) => {
  */
 router.post('/:orgAlias/batch-components', async (req, res) => {
   const { orgAlias } = req.params
-  const { types } = req.body
+  const { types, skipCache } = req.body
 
   if (!Array.isArray(types) || types.length === 0) {
     return res.status(400).json({ error: 'types must be a non-empty array' })
@@ -239,6 +239,10 @@ router.post('/:orgAlias/batch-components', async (req, res) => {
   const uncachedTypes = []
 
   for (const type of types) {
+    if (skipCache) {
+      uncachedTypes.push(type)
+      continue
+    }
     const cached = getCachedComponents(orgAlias, type, baseDir)
     if (cached) {
       output[type] = cached
