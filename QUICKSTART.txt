@@ -1,5 +1,5 @@
 ============================================
-  Salesforce Deploy Kit — Quick Start Guide
+  Pushly — Quick Start Guide
 ============================================
 
 PREREQUISITES
@@ -16,27 +16,27 @@ PREREQUISITES
    - Toggle "Enable Unlocked Packages" ON
 
 3. Make this script executable:
-     chmod +x sf-deploy.sh
+     chmod +x pushly.sh
 
 
 FIRST-TIME SETUP (do once)
 ──────────────────────────
 1. Authenticate to your Dev Hub (production org):
-     ./sf-deploy.sh login
+     ./pushly.sh login
      → Choose option 1 (Dev Hub)
 
 2. Authenticate to your sandbox(es):
-     ./sf-deploy.sh login
+     ./pushly.sh login
      → Choose option 2 (Sandbox)
 
 3. Create a project (if starting fresh):
-     ./sf-deploy.sh setup
+     ./pushly.sh setup
 
 4. Pull metadata from your sandbox:
-     ./sf-deploy.sh pull
+     ./pushly.sh pull
 
 5. Create your first package:
-     ./sf-deploy.sh package-create
+     ./pushly.sh package-create
 
 
 DEPLOYING A FEATURE (repeat for each release)
@@ -44,41 +44,41 @@ DEPLOYING A FEATURE (repeat for each release)
 1. Make your changes in the sandbox (clicks or code)
 
 2. Pull the latest metadata:
-     ./sf-deploy.sh pull
+     ./pushly.sh pull
 
 3. Build a package version:
-     ./sf-deploy.sh version-create
+     ./pushly.sh version-create
 
 4. Install in staging/UAT for testing:
-     ./sf-deploy.sh install
+     ./pushly.sh install
 
 5. After testing passes, promote the version:
-     ./sf-deploy.sh promote
+     ./pushly.sh promote
 
 6. Install in production:
-     ./sf-deploy.sh install
+     ./pushly.sh install
 
 
 SHARING WITH YOUR TEAM
 ──────────────────────
-Copy the entire salesforce-deploy-kit/ folder to:
+Copy the entire pushly/ folder to:
   - A shared network drive
   - SharePoint/OneDrive
   - Any shared location your team can access
 
 Each team member needs to:
   1. Install the Salesforce CLI on their machine
-  2. Run ./sf-deploy.sh login to authenticate
+  2. Run ./pushly.sh login to authenticate
   3. Use the same project folder for pulls and version builds
 
 
 COMMON COMMANDS
 ───────────────
-./sf-deploy.sh help            Show all commands
-./sf-deploy.sh status          Show authenticated orgs
-./sf-deploy.sh version-list    Show all package versions
-./sf-deploy.sh pull            Get metadata from an org
-./sf-deploy.sh push            Deploy metadata directly (without packaging)
+./pushly.sh help            Show all commands
+./pushly.sh status          Show authenticated orgs
+./pushly.sh version-list    Show all package versions
+./pushly.sh pull            Get metadata from an org
+./pushly.sh push            Deploy metadata directly (without packaging)
 
 
 TROUBLESHOOTING
@@ -87,7 +87,7 @@ TROUBLESHOOTING
   → Install the CLI: npm install @salesforce/cli --global
 
 "Not authenticated to Dev Hub"
-  → Run: ./sf-deploy.sh login → Choose Dev Hub
+  → Run: ./pushly.sh login → Choose Dev Hub
 
 "Apex code coverage is below 75%"
   → Write more test classes, or use version-create without coverage
