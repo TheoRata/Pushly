@@ -1,7 +1,7 @@
 import { execSync } from 'child_process'
 
 /**
- * Checks system readiness for running the Salesforce Deploy Kit.
+ * Checks system readiness for running Pushly.
  * @returns {{ ok: boolean, checks: Array<{ name: string, status: 'pass'|'fail', message: string }> }}
  */
 export function checkPrerequisites() {
