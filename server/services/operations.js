@@ -126,3 +126,29 @@ function broadcast(message) {
     }
   }
 }
+
+/**
+ * Removes completed/failed operations older than maxAgeMs.
+ * Returns the number of removed operations.
+ * @param {number} maxAgeMs - Maximum age in milliseconds (default: 1 hour)
+ * @returns {number}
+ */
+export function cleanupCompletedOperations(maxAgeMs = 60 * 60 * 1000) {
+  const cutoff = Date.now() - maxAgeMs
+  let removed = 0
+  for (const [id, op] of operations) {
+    if (op.completedAt && new Date(op.completedAt).getTime() < cutoff) {
+      operations.delete(id)
+      removed++
+    }
+  }
+  return removed
+}
+
+/**
+ * Resets all state — for testing only.
+ */
+export function _resetForTest() {
+  operations.clear()
+  wsClients.clear()
+}
