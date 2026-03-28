@@ -20,6 +20,32 @@ export function useMetadata() {
   }
 
   /**
+   * Distributes batch-fetched component results back into category objects.
+   * Mutates each category's `components` array and sets `loading = false`.
+   */
+  function distributeBatchResults(categoryList, results) {
+    for (const cat of categoryList) {
+      const allComponents = []
+      for (const mt of cat.types) {
+        const typeName = mt.xmlName || mt
+        const components = results[typeName]
+        if (Array.isArray(components)) {
+          for (const c of components) {
+            allComponents.push({
+              fullName: c.fullName || c.name || c,
+              type: typeName,
+              lastModified: c.lastModifiedDate || c.createdDate || null,
+              lastModifiedBy: c.lastModifiedByName || null,
+            })
+          }
+        }
+      }
+      cat.components = allComponents.sort((a, b) => a.fullName.localeCompare(b.fullName))
+      cat.loading = false
+    }
+  }
+
+  /**
    * Fetches types from GET /api/metadata/:orgAlias/types
    * Then loads ALL categories in parallel using the batch endpoint.
    */
@@ -63,26 +89,7 @@ export function useMetadata() {
         { types: allTypeNames }
       )
 
-      // Distribute results back to categories
-      for (const cat of categoryList) {
-        const allComponents = []
-        for (const mt of cat.types) {
-          const typeName = mt.xmlName || mt
-          const components = results[typeName]
-          if (Array.isArray(components)) {
-            for (const c of components) {
-              allComponents.push({
-                fullName: c.fullName || c.name || c,
-                type: typeName,
-                lastModified: c.lastModifiedDate || c.createdDate || null,
-                lastModifiedBy: c.lastModifiedByName || null,
-              })
-            }
-          }
-        }
-        cat.components = allComponents.sort((a, b) => a.fullName.localeCompare(b.fullName))
-        cat.loading = false
-      }
+      distributeBatchResults(categoryList, results)
       // Trigger reactivity
       categories.value = [...categories.value]
       rebuildIndex()
@@ -239,26 +246,7 @@ export function useMetadata() {
         { types: allTypeNames, skipCache: true }
       )
 
-      // Distribute results
-      for (const cat of categoryList) {
-        const allComponents = []
-        for (const mt of cat.types) {
-          const typeName = mt.xmlName || mt
-          const components = results[typeName]
-          if (Array.isArray(components)) {
-            for (const c of components) {
-              allComponents.push({
-                fullName: c.fullName || c.name || c,
-                type: typeName,
-                lastModified: c.lastModifiedDate || c.createdDate || null,
-                lastModifiedBy: c.lastModifiedByName || null,
-              })
-            }
-          }
-        }
-        cat.components = allComponents.sort((a, b) => a.fullName.localeCompare(b.fullName))
-        cat.loading = false
-      }
+      distributeBatchResults(categoryList, results)
       categories.value = [...categories.value]
       rebuildIndex()
     } catch (err) {
