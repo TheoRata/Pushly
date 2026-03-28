@@ -12,3 +12,8 @@ workspaces/
 .sfdx/
 data/cache/
 docs/
+
+# SQLite database
+data/pushly.db
+data/pushly.db-wal
+data/pushly.db-shm
