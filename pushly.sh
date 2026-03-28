@@ -158,12 +158,11 @@ cmd_package_create() {
 
     info "Creating unlocked package '$pkg_name'..."
 
-    cmd="sf package create --name \"$pkg_name\" --package-type Unlocked --path \"$pkg_path\" --no-namespace --target-dev-hub DevHub"
     if [ -n "$pkg_desc" ]; then
-        cmd="$cmd --description \"$pkg_desc\""
+        sf package create --name "$pkg_name" --package-type Unlocked --path "$pkg_path" --no-namespace --target-dev-hub DevHub --description "$pkg_desc"
+    else
+        sf package create --name "$pkg_name" --package-type Unlocked --path "$pkg_path" --no-namespace --target-dev-hub DevHub
     fi
-
-    eval $cmd
     success "Package '$pkg_name' created!"
     echo ""
     info "Your sfdx-project.json has been updated with the package definition."
@@ -172,7 +171,6 @@ cmd_package_create() {
 
 cmd_version_create() {
     echo ""
-    # Show available packages
     info "Available packages:"
     sf package list --target-dev-hub DevHub 2>/dev/null || warn "Could not list packages. Make sure DevHub is authenticated."
     echo ""
@@ -188,14 +186,13 @@ cmd_version_create() {
         error "Installation key is required."
     fi
 
-    cmd="sf package version create --package \"$pkg_name\" --installation-key \"$install_key\" --wait 15 --target-dev-hub DevHub"
-
-    if [[ ! "$run_coverage" =~ ^[Nn]$ ]]; then
-        cmd="$cmd --code-coverage"
-    fi
-
     info "Building package version (this may take a few minutes)..."
-    eval $cmd
+
+    if [[ "$run_coverage" =~ ^[Nn]$ ]]; then
+        sf package version create --package "$pkg_name" --installation-key "$install_key" --wait 15 --target-dev-hub DevHub
+    else
+        sf package version create --package "$pkg_name" --installation-key "$install_key" --wait 15 --target-dev-hub DevHub --code-coverage
+    fi
     success "Package version created!"
     echo ""
     info "List versions: ./pushly.sh version-list"
