@@ -71,6 +71,21 @@ onMounted(async () => {
       loadingRetrieves.value = false
     }
   }
+
+  if (route.query.fromCompare === 'true') {
+    const components = (route.query.components || '').split(',').filter(Boolean)
+    selectedComponents.value = components.map((c) => {
+      const [type, ...nameParts] = c.split(':')
+      return { type, fullName: nameParts.join(':') }
+    })
+    sourceOrg.value = route.query.source || ''
+    targetOrg.value = route.query.target || ''
+
+    if (selectedComponents.value.length > 0) {
+      completedSteps.value = ['source', 'components', 'target']
+      currentStep.value = 3
+    }
+  }
 })
 
 on('operation:complete', (data) => {
