@@ -17,10 +17,9 @@ const router = Router()
  * GET /api/retrieve — list recent retrieve operations
  */
 router.get('/', (req, res) => {
-  const dataDir = req.app.locals.dataDir
-  const user = resolveUser(dataDir)
+  const user = resolveUser()
 
-  const records = readRecords({ user }, dataDir)
+  const records = readRecords({ user })
   const retrieveRecords = records.filter((r) => r.type === 'retrieve')
 
   res.json({ operations: retrieveRecords })
@@ -32,7 +31,6 @@ router.get('/', (req, res) => {
  */
 router.post('/', async (req, res) => {
   const { orgAlias, components, mode, name } = req.body
-  const dataDir = req.app.locals.dataDir
   const baseDir = req.app.locals.baseDir
 
   if (!orgAlias || !components || !Array.isArray(components) || components.length === 0) {
@@ -42,7 +40,7 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'name is required' })
   }
 
-  const user = resolveUser(dataDir)
+  const user = resolveUser()
   const operationId = crypto.randomUUID()
 
   try {
@@ -63,7 +61,7 @@ router.post('/', async (req, res) => {
       status: 'in_progress',
       startedAt: new Date().toISOString(),
     }
-    writeRecord(record, dataDir)
+    writeRecord(record)
 
     // Track the operation via operations manager
     createOperation(operationId, 'retrieve', { orgAlias, components })
@@ -102,7 +100,7 @@ router.post('/', async (req, res) => {
       record.status = 'success'
       record.completedAt = new Date().toISOString()
       record.result = result
-      writeRecord(record, dataDir)
+      writeRecord(record)
       completeOperation(operationId, {
         components,
         result,
@@ -113,7 +111,7 @@ router.post('/', async (req, res) => {
       record.status = 'failed'
       record.completedAt = new Date().toISOString()
       record.error = err.message || String(err)
-      writeRecord(record, dataDir)
+      writeRecord(record)
       completeOperation(operationId, { error: record.error, components })
     }
   } catch (err) {
@@ -126,7 +124,6 @@ router.post('/', async (req, res) => {
  */
 router.get('/:id/status', (req, res) => {
   const { id } = req.params
-  const dataDir = req.app.locals.dataDir
 
   // Check operations manager first for latest state
   const op = getOperation(id)
@@ -135,7 +132,7 @@ router.get('/:id/status', (req, res) => {
   }
 
   // Fall back to history record
-  const record = readRecord(id, dataDir)
+  const record = readRecord(id)
   if (!record) {
     return res.status(404).json({ error: 'Operation not found' })
   }

@@ -7,10 +7,8 @@ const router = Router()
  * GET /api/bundles — list all saved bundles
  */
 router.get('/', (req, res) => {
-  const dataDir = req.app.locals.dataDir
-
   try {
-    const bundles = listBundles(dataDir)
+    const bundles = listBundles()
     res.json({ bundles })
   } catch (err) {
     res.status(500).json({ error: err.message || 'Failed to list bundles' })
@@ -23,14 +21,13 @@ router.get('/', (req, res) => {
  */
 router.post('/', (req, res) => {
   const { name, components } = req.body
-  const dataDir = req.app.locals.dataDir
 
   if (!name || !components || !Array.isArray(components)) {
     return res.status(400).json({ error: 'name and components array are required' })
   }
 
   try {
-    const bundle = saveBundle(name, components, dataDir)
+    const bundle = saveBundle(name, components)
     res.status(201).json({ bundle })
   } catch (err) {
     res.status(500).json({ error: err.message || 'Failed to create bundle' })
@@ -43,14 +40,13 @@ router.post('/', (req, res) => {
 router.put('/:name', (req, res) => {
   const { name } = req.params
   const { components } = req.body
-  const dataDir = req.app.locals.dataDir
 
   if (!components || !Array.isArray(components)) {
     return res.status(400).json({ error: 'components array is required' })
   }
 
   try {
-    const bundle = saveBundle(name, components, dataDir)
+    const bundle = saveBundle(name, components)
     res.json({ bundle })
   } catch (err) {
     res.status(500).json({ error: err.message || 'Failed to update bundle' })
@@ -62,9 +58,8 @@ router.put('/:name', (req, res) => {
  */
 router.delete('/:name', (req, res) => {
   const { name } = req.params
-  const dataDir = req.app.locals.dataDir
 
-  const deleted = deleteBundle(name, dataDir)
+  const deleted = deleteBundle(name)
   if (!deleted) {
     return res.status(404).json({ error: 'Bundle not found' })
   }

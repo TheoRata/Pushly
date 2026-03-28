@@ -8,7 +8,6 @@ const router = Router()
  * Query: user, org, status, from, to
  */
 router.get('/', (req, res) => {
-  const dataDir = req.app.locals.dataDir
   const { user, org, status, from, to } = req.query
 
   try {
@@ -19,7 +18,7 @@ router.get('/', (req, res) => {
     if (from) filters.from = from
     if (to) filters.to = to
 
-    const records = readRecords(filters, dataDir)
+    const records = readRecords(filters)
     res.json({ records })
   } catch (err) {
     res.status(500).json({ error: err.message || 'Failed to read history' })
@@ -31,9 +30,8 @@ router.get('/', (req, res) => {
  */
 router.get('/:id', (req, res) => {
   const { id } = req.params
-  const dataDir = req.app.locals.dataDir
 
-  const record = readRecord(id, dataDir)
+  const record = readRecord(id)
   if (!record) {
     return res.status(404).json({ error: 'Record not found' })
   }

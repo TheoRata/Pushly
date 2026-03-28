@@ -76,7 +76,7 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'targetOrg and workspacePath are required' })
   }
 
-  const user = resolveUser(dataDir)
+  const user = resolveUser()
   const operationId = crypto.randomUUID()
   const resolvedPath = getWorkspace(workspacePath, baseDir) || workspacePath
 
@@ -104,7 +104,7 @@ router.post('/', async (req, res) => {
     status: 'in_progress',
     startedAt: new Date().toISOString(),
   }
-  writeRecord(record, dataDir)
+  writeRecord(record)
   createOperation(operationId, 'deploy', { targetOrg, components: components || [] })
 
   // Return immediately
@@ -140,7 +140,7 @@ router.post('/', async (req, res) => {
     record.status = 'success'
     record.completedAt = new Date().toISOString()
     record.result = result
-    writeRecord(record, dataDir)
+    writeRecord(record)
     completeOperation(operationId, {
       components: components || [],
       result,
@@ -166,7 +166,7 @@ router.post('/', async (req, res) => {
     record.completedAt = new Date().toISOString()
     record.error = errorMsg
     record.failedComponents = componentFailures
-    writeRecord(record, dataDir)
+    writeRecord(record)
     completeOperation(operationId, {
       error: errorMsg,
       action,
@@ -183,10 +183,9 @@ router.post('/', async (req, res) => {
  */
 router.post('/:id/retry-failed', async (req, res) => {
   const { id } = req.params
-  const dataDir = req.app.locals.dataDir
   const baseDir = req.app.locals.baseDir
 
-  const original = readRecord(id, dataDir)
+  const original = readRecord(id)
   if (!original) {
     return res.status(404).json({ error: 'Operation not found' })
   }
@@ -199,7 +198,7 @@ router.post('/:id/retry-failed', async (req, res) => {
     return res.status(400).json({ error: 'No failed components to retry' })
   }
 
-  const user = resolveUser(dataDir)
+  const user = resolveUser()
   const retryId = crypto.randomUUID()
   const resolvedPath = getWorkspace(original.workspacePath, baseDir) || original.workspacePath
 
@@ -223,7 +222,7 @@ router.post('/:id/retry-failed', async (req, res) => {
     status: 'in_progress',
     startedAt: new Date().toISOString(),
   }
-  writeRecord(record, dataDir)
+  writeRecord(record)
   createOperation(retryId, 'deploy', {
     targetOrg: original.targetOrg,
     components: failedComponents,
@@ -242,13 +241,13 @@ router.post('/:id/retry-failed', async (req, res) => {
     record.status = 'success'
     record.completedAt = new Date().toISOString()
     record.result = result
-    writeRecord(record, dataDir)
+    writeRecord(record)
     completeOperation(retryId, { components: failedComponents, result })
   } catch (err) {
     record.status = 'failed'
     record.completedAt = new Date().toISOString()
     record.error = err.plain || err.message || err.raw || 'Operation failed'
-    writeRecord(record, dataDir)
+    writeRecord(record)
     completeOperation(retryId, { error: record.error })
   } finally {
     releaseLock(original.targetOrg)
@@ -262,7 +261,7 @@ router.post('/:id/rollback', async (req, res) => {
   const { id } = req.params
   const dataDir = req.app.locals.dataDir
 
-  const original = readRecord(id, dataDir)
+  const original = readRecord(id)
   if (!original) {
     return res.status(404).json({ error: 'Operation not found' })
   }
@@ -283,7 +282,7 @@ router.post('/:id/rollback', async (req, res) => {
     })
   }
 
-  const user = resolveUser(dataDir)
+  const user = resolveUser()
   const rollbackId = crypto.randomUUID()
 
   // Acquire lock
@@ -306,7 +305,7 @@ router.post('/:id/rollback', async (req, res) => {
     status: 'in_progress',
     startedAt: new Date().toISOString(),
   }
-  writeRecord(record, dataDir)
+  writeRecord(record)
   createOperation(rollbackId, 'rollback', {
     targetOrg: original.targetOrg,
     components: original.components || [],
@@ -325,13 +324,13 @@ router.post('/:id/rollback', async (req, res) => {
     record.status = 'success'
     record.completedAt = new Date().toISOString()
     record.result = result
-    writeRecord(record, dataDir)
+    writeRecord(record)
     completeOperation(rollbackId, { components: original.components || [], result })
   } catch (err) {
     record.status = 'failed'
     record.completedAt = new Date().toISOString()
     record.error = err.plain || err.message || err.raw || 'Operation failed'
-    writeRecord(record, dataDir)
+    writeRecord(record)
     completeOperation(rollbackId, { error: record.error })
   } finally {
     releaseLock(original.targetOrg)
@@ -343,7 +342,6 @@ router.post('/:id/rollback', async (req, res) => {
  */
 router.get('/:id/status', (req, res) => {
   const { id } = req.params
-  const dataDir = req.app.locals.dataDir
 
   // Check operations manager first for latest state
   const op = getOperation(id)
@@ -352,7 +350,7 @@ router.get('/:id/status', (req, res) => {
   }
 
   // Fall back to history record
-  const record = readRecord(id, dataDir)
+  const record = readRecord(id)
   if (!record) {
     return res.status(404).json({ error: 'Operation not found' })
   }

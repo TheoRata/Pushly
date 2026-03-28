@@ -7,6 +7,7 @@ import open from 'open'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 
+import { initDb } from './services/db.js'
 import { cleanupStaleLocks } from './services/lock.js'
 import { cleanupOldWorkspaces } from './services/workspace.js'
 import { cleanupOldSnapshots } from './services/rollback.js'
@@ -29,15 +30,18 @@ const __dirname = dirname(__filename)
 // Initialize data directories
 const baseDir = join(__dirname, '..')
 const dataDir = join(baseDir, 'data')
-;['history', 'history/archive', 'bundles', 'rollbacks'].forEach((dir) => {
+;['rollbacks'].forEach((dir) => {
   fs.mkdirSync(join(dataDir, dir), { recursive: true })
 })
+
+// Initialize SQLite database
+initDb(join(dataDir, 'pushly.db'))
 
 // Cleanup on startup
 cleanupStaleLocks()
 cleanupOldWorkspaces(30, baseDir)
 cleanupOldSnapshots(90, dataDir)
-archiveOldRecords(dataDir, 180)
+archiveOldRecords(180)
 cleanupCompletedOperations()
 
 // Initialize metadata cache from disk
