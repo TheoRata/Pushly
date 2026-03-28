@@ -1,3 +1,8 @@
+import fs from 'node:fs'
+import path from 'node:path'
+import os from 'node:os'
+import { retrieveMetadata } from './sf-cli.js'
+
 /**
  * Compares two metadata inventory lists and categorizes components.
  *
@@ -114,4 +119,74 @@ export function extractProperties(xml, metadataType) {
   const apiVersion = getTag(xml, 'apiVersion')
   if (apiVersion) fallback['API Version'] = apiVersion
   return fallback
+}
+
+export async function getComponentDetail(sourceOrg, targetOrg, type, name) {
+  const tmpBase = path.join(os.tmpdir(), `pushly-compare-${Date.now()}`)
+  const sourceDir = path.join(tmpBase, 'source')
+  const targetDir = path.join(tmpBase, 'target')
+
+  for (const dir of [sourceDir, targetDir]) {
+    fs.mkdirSync(path.join(dir, 'force-app', 'main', 'default'), { recursive: true })
+    fs.writeFileSync(
+      path.join(dir, 'sfdx-project.json'),
+      JSON.stringify({
+        packageDirectories: [{ path: 'force-app', default: true }],
+        sourceApiVersion: '62.0',
+      })
+    )
+  }
+
+  const component = { type, fullName: name }
+
+  await Promise.allSettled([
+    retrieveMetadata(sourceOrg, [component], sourceDir),
+    retrieveMetadata(targetOrg, [component], targetDir),
+  ])
+
+  const sourceXml = findMetadataFile(sourceDir)
+  const targetXml = findMetadataFile(targetDir)
+
+  const sourceProps = sourceXml ? extractProperties(sourceXml, type) : { error: 'Not found in source' }
+  const targetProps = targetXml ? extractProperties(targetXml, type) : { error: 'Not found in target' }
+
+  const diffs = []
+  const allKeys = new Set([...Object.keys(sourceProps), ...Object.keys(targetProps)])
+  for (const key of allKeys) {
+    if (key === 'error') continue
+    const sv = sourceProps[key]
+    const tv = targetProps[key]
+    if (sv !== tv) {
+      diffs.push({ property: key, source: sv || null, target: tv || null })
+    }
+  }
+
+  try {
+    fs.rmSync(tmpBase, { recursive: true, force: true })
+  } catch {
+    // Best effort cleanup
+  }
+
+  return { source: sourceProps, target: targetProps, diffs }
+}
+
+function findMetadataFile(workspaceDir) {
+  const baseDir = path.join(workspaceDir, 'force-app', 'main', 'default')
+  if (!fs.existsSync(baseDir)) return null
+
+  function walk(dir) {
+    const entries = fs.readdirSync(dir, { withFileTypes: true })
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name)
+      if (entry.isDirectory()) {
+        const found = walk(fullPath)
+        if (found) return found
+      } else if (entry.name.endsWith('-meta.xml') || (entry.name.endsWith('.xml') && entry.name !== 'package.xml')) {
+        return fs.readFileSync(fullPath, 'utf-8')
+      }
+    }
+    return null
+  }
+
+  return walk(baseDir)
 }
