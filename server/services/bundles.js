@@ -1,64 +1,33 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { safeName } from '../utils/sanitize.js';
+import { getDb } from './db.js';
 
-function bundlesDir(dataDir) {
-  return path.join(dataDir, 'bundles');
+export function listBundles() {
+  const rows = getDb().prepare('SELECT * FROM bundles ORDER BY created_at DESC').all();
+  return rows.map(rowToBundle);
 }
 
-/**
- * Lists all saved bundles.
- */
-export function listBundles(dataDir) {
-  const dir = bundlesDir(dataDir);
-  if (!fs.existsSync(dir)) return [];
-
-  return fs.readdirSync(dir)
-    .filter(f => f.endsWith('.json'))
-    .map(f => {
-      try {
-        return JSON.parse(fs.readFileSync(path.join(dir, f), 'utf-8'));
-      } catch {
-        return null;
-      }
-    })
-    .filter(Boolean);
+export function getBundle(name) {
+  const row = getDb().prepare('SELECT * FROM bundles WHERE name = ?').get(name);
+  return row ? rowToBundle(row) : null;
 }
 
-/**
- * Gets a single bundle by name.
- */
-export function getBundle(name, dataDir) {
-  const filePath = path.join(bundlesDir(dataDir), `${safeName(name)}.json`);
-  if (!fs.existsSync(filePath)) return null;
-
-  try {
-    return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Saves a bundle.
- */
-export function saveBundle(name, components, dataDir) {
-  const dir = bundlesDir(dataDir);
-  fs.mkdirSync(dir, { recursive: true });
-
+export function saveBundle(name, components) {
   const bundle = { name, components, createdAt: new Date().toISOString() };
-  fs.writeFileSync(path.join(dir, `${safeName(name)}.json`), JSON.stringify(bundle, null, 2));
+  getDb().prepare(`
+    INSERT OR REPLACE INTO bundles (name, components, created_at)
+    VALUES (?, ?, ?)
+  `).run(name, JSON.stringify(components), bundle.createdAt);
   return bundle;
 }
 
-/**
- * Deletes a bundle by name.
- */
-export function deleteBundle(name, dataDir) {
-  const filePath = path.join(bundlesDir(dataDir), `${safeName(name)}.json`);
-  if (fs.existsSync(filePath)) {
-    fs.unlinkSync(filePath);
-    return true;
-  }
-  return false;
+export function deleteBundle(name) {
+  const result = getDb().prepare('DELETE FROM bundles WHERE name = ?').run(name);
+  return result.changes > 0;
+}
+
+function rowToBundle(row) {
+  return {
+    name: row.name,
+    components: JSON.parse(row.components),
+    createdAt: row.created_at,
+  };
 }
