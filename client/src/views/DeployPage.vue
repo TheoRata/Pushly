@@ -80,6 +80,8 @@ onMounted(async () => {
     })
     sourceOrg.value = route.query.source || ''
     targetOrg.value = route.query.target || ''
+    // Set sourceType to 'org' so validation triggers retrieve-then-validate
+    sourceType.value = 'org'
 
     if (selectedComponents.value.length > 0) {
       completedSteps.value = ['source', 'components', 'target']
@@ -464,7 +466,7 @@ function formatDate(dateStr) {
 </script>
 
 <template>
-  <div class="max-w-5xl mx-auto px-6 py-8">
+  <div :class="currentStep === 1 ? 'max-w-7xl mx-auto px-6 py-4' : 'max-w-5xl mx-auto px-6 py-8'">
     <!-- Page header -->
     <div class="mb-8">
       <h1 class="text-2xl font-bold text-[var(--text-primary)]">Deploy to Org</h1>
@@ -575,7 +577,7 @@ function formatDate(dateStr) {
       </div>
 
       <!-- ==================== STEP 2: Select Components ==================== -->
-      <div v-else-if="currentStep === 1" key="step-1">
+      <div v-else-if="currentStep === 1" key="step-1" class="flex flex-col" style="height: calc(100vh - 200px);">
         <GlassCard padding="lg">
           <h2 class="text-lg font-semibold text-[var(--text-primary)] mb-1">Select Components</h2>
           <p class="text-sm text-[var(--text-muted)] mb-5">
@@ -634,15 +636,18 @@ function formatDate(dateStr) {
           </div>
 
           <!-- From org: MetadataTree -->
-          <div v-if="sourceType === 'org' && sourceOrg" class="rounded-[var(--radius-md)] border border-[var(--glass-border)] overflow-hidden" style="height: 500px;">
+          <div v-if="sourceType === 'org' && sourceOrg" class="flex-1 rounded-[var(--radius-md)] border border-[var(--glass-border)] overflow-hidden">
             <MetadataTree
               :org-alias="sourceOrg"
               v-model="selectedComponents"
+              :can-proceed="canAdvanceStep2"
+              @back="prevStep"
+              @next="nextStep"
             />
           </div>
 
           <!-- Navigation -->
-          <div class="mt-6 flex justify-between">
+          <div v-if="sourceType !== 'org'" class="mt-6 flex justify-between">
             <GlassButton variant="ghost" @click="prevStep">Back</GlassButton>
             <GlassButton
               variant="primary"
