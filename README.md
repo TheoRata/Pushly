@@ -2,24 +2,26 @@
 
 **Deploy Salesforce metadata without touching the terminal.**
 
-Pushly is a free, open-source web UI that wraps the Salesforce CLI. It gives admin teams guided wizard flows to retrieve and deploy metadata between orgs — no CLI knowledge required.
-
-![Pushly Deploy Flow](docs/screenshots/deploy-flow.gif)
+Pushly is a free, open-source web UI that wraps the Salesforce CLI. It gives admin teams guided wizard flows to retrieve, compare, and deploy metadata between orgs — no CLI knowledge required.
 
 ## Why Pushly?
 
-- **Change Sets are slow** — Pushly loads metadata in seconds with search and filtering
+- **Change Sets are slow** — Pushly loads metadata in seconds with fuzzy search and filtering
 - **The CLI is intimidating** — Pushly gives you point-and-click wizards instead
 - **Enterprise tools cost $200+/user/month** — Pushly is free
+- **No database needed** — Runs locally, stores data as JSON files on disk
 
 ## Features
 
-- **Wizard-based retrieve & deploy** — Step-by-step flows with validation
-- **Searchable metadata tree** — Find components instantly across categories
-- **Validation before deploy** — Dry-run deployments to catch errors before they hit production
-- **One-click rollback** — Pre-deploy snapshots let you revert if something goes wrong
-- **Shared team history** — Everyone sees who deployed what, when
-- **Plain-English errors** — Salesforce error codes translated to actionable messages
+- **Retrieve Wizard** — 4-step flow to pull metadata from any connected org with cherry-pick or all-metadata modes
+- **Deploy Wizard** — 5-step flow with mandatory validation before deploy, rollback snapshots, and deploy locking
+- **Org Comparison** — Side-by-side metadata diff between two orgs with drill-down into individual components
+- **Component Browser** — Fuzzy search across metadata types, category sidebar, virtual scrolling, and bundle save/load
+- **Real-time Progress** — WebSocket-driven per-component status tracking during retrieve and deploy operations
+- **One-click Rollback** — Pre-deploy snapshots let you revert if something goes wrong
+- **Plain-English Errors** — Salesforce error codes translated to actionable messages
+- **Operation History** — Paginated log of all retrieve/deploy operations
+- **Glass Design System** — Custom UI components with dark/light mode support
 
 ## Quick Start
 
@@ -32,8 +34,8 @@ Pushly is a free, open-source web UI that wraps the Salesforce CLI. It gives adm
 ### Install & Run
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/pushly.git
-cd pushly
+git clone https://github.com/TheoRata/Pushly.git
+cd Pushly
 npm install
 npm run build
 npm start
@@ -50,10 +52,11 @@ npm test       # Run all tests
 
 ## How It Works
 
-1. **Connect orgs** — Pushly detects orgs already authenticated via Salesforce CLI
-2. **Retrieve metadata** — Browse and select components from a searchable tree
-3. **Deploy with confidence** — Validate first (dry run), then deploy with real-time progress
-4. **Roll back if needed** — Every deploy creates a snapshot you can restore
+1. **Connect orgs** — Pushly detects orgs already authenticated via Salesforce CLI or the VS Code Salesforce Extension
+2. **Retrieve metadata** — Browse and select components from a searchable tree with fuzzy matching
+3. **Compare orgs** — Pick two orgs and see a side-by-side diff of their metadata inventories
+4. **Deploy with confidence** — Validate first (dry run), then deploy with real-time progress
+5. **Roll back if needed** — Every deploy creates a snapshot you can restore
 
 ## Team Setup (Shared Drive)
 
@@ -61,12 +64,34 @@ Pushly runs locally but stores history on a shared folder. Put the project on On
 
 See [QUICKSTART.txt](QUICKSTART.txt) for detailed team setup instructions.
 
+## Architecture
+
+```
+pushly/
+├── server/          # Node.js + Express backend (ES modules)
+│   ├── routes/      # REST API (orgs, metadata, retrieve, deploy, compare, history, bundles)
+│   ├── services/    # SF CLI wrapper, operations tracking, history, rollback, workspace
+│   └── utils/       # Error translation, prerequisites check
+├── client/          # Vue 3 + Vite + Tailwind CSS v4 frontend
+│   └── src/
+│       ├── views/       # Dashboard, Orgs, Retrieve, Compare, Deploy, History
+│       ├── components/  # Glass design system + metadata browser
+│       └── composables/ # Shared state (useApi, useWebSocket, useMetadata, useCompare, etc.)
+└── package.json
+```
+
+**Data flow:** Browser &rarr; REST API + WebSocket &rarr; Express &rarr; `sf` CLI &rarr; Salesforce orgs
+
 ## Tech Stack
 
-- **Frontend:** Vue 3 + Vite + Tailwind CSS v4
-- **Backend:** Node.js + Express + WebSocket
-- **CLI:** Wraps Salesforce CLI (`sf`) commands
-- **Data:** JSON files (no database required)
+| Layer | Technology |
+|-------|-----------|
+| Frontend | Vue 3, Vite 6, Tailwind CSS v4 |
+| Backend | Node.js, Express |
+| Real-time | WebSocket (`ws`) |
+| Salesforce | SF CLI (`sf`) |
+| Testing | Vitest |
+| Data | JSON files (no database) |
 
 ## License
 
@@ -74,4 +99,4 @@ See [QUICKSTART.txt](QUICKSTART.txt) for detailed team setup instructions.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
+Contributions welcome! Open an issue or submit a pull request.
