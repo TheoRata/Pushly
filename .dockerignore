@@ -1,0 +1,10 @@
+node_modules
+server/node_modules
+client/node_modules
+data
+workspaces
+.git
+.DS_Store
+*.log
+docs
+.playwright-mcp

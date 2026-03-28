@@ -29,7 +29,7 @@ const __dirname = dirname(__filename)
 
 // Initialize data directories
 const baseDir = join(__dirname, '..')
-const dataDir = join(baseDir, 'data')
+const dataDir = process.env.PUSHLY_DATA_DIR || join(baseDir, 'data')
 ;['rollbacks'].forEach((dir) => {
   fs.mkdirSync(join(dataDir, dir), { recursive: true })
 })

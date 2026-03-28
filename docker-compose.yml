@@ -1,0 +1,13 @@
+services:
+  pushly:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - pushly-data:/app/data
+      - pushly-workspaces:/app/workspaces
+    restart: unless-stopped
+
+volumes:
+  pushly-data:
+  pushly-workspaces:
