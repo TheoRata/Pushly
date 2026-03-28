@@ -43,6 +43,9 @@
   --bg-base: #ffffff;
   --bg-base-end: #f9fafb;
 
+  /* Nav bar — opaque enough to read over scrolling content */
+  --nav-bg: rgba(255, 255, 255, 0.9);
+
   /* Glass surfaces — light mode */
   --glass-bg: rgba(0, 0, 0, 0.02);
   --glass-bg-hover: rgba(0, 0, 0, 0.04);
@@ -121,6 +124,9 @@
   /* Backgrounds — dark */
   --bg-base: #171717;
   --bg-base-end: #1c1c1c;
+
+  /* Nav bar — dark */
+  --nav-bg: rgba(23, 23, 23, 0.9);
 
   /* Glass surfaces — dark mode */
   --glass-bg: rgba(255, 255, 255, 0.04);

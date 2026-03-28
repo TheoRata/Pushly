@@ -41,7 +41,7 @@ After changing frontend code, you must `npm run build` if testing via the produc
 ### Backend (`server/`)
 
 - **`index.js`** — Express app, WebSocket server, port detection (3000-3010), browser auto-open, data dir init, startup cleanup
-- **`routes/`** — 6 Express Router modules: orgs, metadata, retrieve, deploy, history, bundles
+- **`routes/`** — 7 Express Router modules: orgs, metadata, retrieve, deploy, history, bundles, compare
 - **`services/`** — Business logic:
   - `sf-cli.js` — Core CLI wrapper. `sfCommand()` runs with `--json`, parses output. `sfCommandStream()` streams stdout line-by-line for real-time progress.
   - `operations.js` — Tracks active operations in a Map, broadcasts progress to all WebSocket clients
@@ -49,12 +49,13 @@ After changing frontend code, you must `npm run build` if testing via the produc
   - `lock.js` — Deploy locks via `data/{orgAlias}.deploy.lock` files. Best-effort on network drives (sync delay acknowledged).
   - `workspace.js` — Creates per-user `workspaces/{user}/{org}-{timestamp}/` dirs with auto-generated `sfdx-project.json`
   - `rollback.js` — Pre-deploy snapshots in `data/rollbacks/{deployId}/`
+  - `compare.js` — `diffInventories()` diffs metadata lists, `extractProperties()` extracts type-specific properties from XML, `getComponentDetail()` retrieves single component from both orgs for drill-down
 - **`utils/error-translator.js`** — Maps 8 common Salesforce error codes to plain-English explanations with remediation actions. Unknown errors pass through raw.
 
 ### Frontend (`client/src/`)
 
-- **Views (5 pages):** DashboardPage (stats + recent activity), OrgsPage, RetrievePage (4-step wizard), DeployPage (5-step wizard), HistoryPage (paginated)
-- **Composables:** `useApi` (fetch wrapper), `useWebSocket` (singleton connection, auto-reconnect), `useOrgs` (shared reactive state), `useMetadata` (progressive loading, refresh with cache bypass), `usePagination` (numbered page logic), `useToast`
+- **Views (6 pages):** DashboardPage (stats + recent activity), OrgsPage, RetrievePage (4-step wizard), ComparePage (side-by-side org diff), DeployPage (5-step wizard), HistoryPage (paginated)
+- **Composables:** `useApi` (fetch wrapper), `useWebSocket` (singleton connection, auto-reconnect), `useOrgs` (shared reactive state), `useMetadata` (progressive loading, refresh with cache bypass), `useCompare` (org comparison state, filtering, selection), `usePagination` (numbered page logic), `useToast`
 - **Glass design system** (`components/glass/`): 13 reusable components — GlassCard, GlassButton, GlassInput, GlassBadge, GlassToggle, GlassModal, GlassDropdown, GlassCombobox, GlassTable, GlassPillStepper, GlassPagination, GlassHoverButton, GlassSpotlightCard
 - **Key components:** `TopNavBar` (fixed top nav with SpecialText brand), `MetadataTree` (searchable categorized component browser with bundle support, refresh all/open), `ProgressTracker` (WebSocket-driven per-component status), `OrgDropdown` (searchable combobox with exclude prop)
 
@@ -65,6 +66,7 @@ After changing frontend code, you must `npm run build` if testing via the produc
 - The `sf org list --json` response has `{ other, nonScratchOrgs, scratchOrgs, sandboxes }` — all must be merged and deduplicated
 - API responses are wrapped (e.g., `{ orgs: [...] }`) — composables must extract the inner array
 - Deploy wizard step 4 (Validate) is mandatory — cannot skip to deploy
+- Deploy wizard accepts `fromCompare` query params (`?fromCompare=true&source=X&target=Y&components=Type:Name,...`) — sets `sourceType='org'` and skips to validate step. The validation triggers a retrieve before validating.
 - Metadata batch-components endpoint caches results on disk. Pass `{ skipCache: true }` in POST body to force fresh retrieval from SF CLI.
 - `OrgDropdown` accepts an `exclude` prop to prevent selecting the same org as source and target in DeployPage.
 
@@ -97,3 +99,5 @@ Vitest with ES modules. Tests use temp directories (`fs.mkdtempSync`). The `sf-c
 - Port 3000 may be occupied by other local apps. The server auto-detects (3000-3010) but the user may see a different app if they navigate to 3000 manually.
 - Users who authenticated via VS Code Salesforce Extension already have orgs in `sf org list` — the app should show these automatically, no re-auth needed.
 - **Server has no hot-reload.** After changing backend code (`server/`), you must restart the server. The Vite dev server only hot-reloads frontend code.
+- **Agent teams enabled.** `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` is set in global settings. Use teams for parallel backend/frontend work on separate file sets.
+- **Restart server after backend edits.** `pkill -f 'node.*--watch.*index.js'` then `npm run dev` in background. This is easy to forget when using agent teams — teammates editing server/ files need the server restarted manually.

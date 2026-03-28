@@ -466,9 +466,9 @@ function formatDate(dateStr) {
 </script>
 
 <template>
-  <div :class="currentStep === 1 ? 'max-w-7xl mx-auto px-6 py-4' : 'max-w-5xl mx-auto px-6 py-8'">
+  <div :class="currentStep === 1 ? 'flex flex-col h-[calc(100vh-48px)] px-4 py-3' : 'max-w-5xl mx-auto px-6 py-8'">
     <!-- Page header -->
-    <div class="mb-8">
+    <div :class="currentStep === 1 ? 'mb-3 shrink-0' : 'mb-8'">
       <h1 class="text-2xl font-bold text-[var(--text-primary)]">Deploy to Org</h1>
       <p class="mt-1 text-sm text-[var(--text-secondary)]">
         Push components to a target Salesforce org
@@ -476,7 +476,7 @@ function formatDate(dateStr) {
     </div>
 
     <!-- Wizard pill stepper -->
-    <div class="mb-8">
+    <div :class="currentStep === 1 ? 'mb-3 shrink-0' : 'mb-8'">
       <GlassPillStepper
         :steps="steps"
         :current-step="currentStepKey"
@@ -577,7 +577,7 @@ function formatDate(dateStr) {
       </div>
 
       <!-- ==================== STEP 2: Select Components ==================== -->
-      <div v-else-if="currentStep === 1" key="step-1" class="flex flex-col" style="height: calc(100vh - 200px);">
+      <div v-else-if="currentStep === 1" key="step-1" class="flex flex-col flex-1 min-h-0 overflow-hidden">
         <GlassCard padding="lg">
           <h2 class="text-lg font-semibold text-[var(--text-primary)] mb-1">Select Components</h2>
           <p class="text-sm text-[var(--text-muted)] mb-5">

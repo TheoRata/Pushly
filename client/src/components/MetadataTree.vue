@@ -101,6 +101,18 @@ async function handleRefreshAll() {
   refreshing.value = false
 }
 
+function getFieldsForObject(objectName) {
+  const fields = []
+  for (const cat of categories.value) {
+    for (const comp of cat.components) {
+      if (comp.type === 'CustomField' && comp.fullName.startsWith(objectName + '.')) {
+        fields.push(comp)
+      }
+    }
+  }
+  return fields.sort((a, b) => a.fullName.localeCompare(b.fullName))
+}
+
 async function handleRefreshOpen() {
   if (!activeCategory.value) return
   const category = categories.value.find((c) => c.name === activeCategory.value)
@@ -140,6 +152,7 @@ watch(
         :loading="loading"
         :refreshing="refreshing"
         :active-category="activeCategory"
+        :get-fields-for-object="getFieldsForObject"
         @search="search"
         @toggle-component="toggleComponent"
         @toggle-recent="toggleRecentlyModified"

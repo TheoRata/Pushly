@@ -62,6 +62,7 @@ const canProceedStep2 = computed(() =>
 const componentCount = computed(() =>
   retrieveMode.value === 'all' ? 'All metadata' : `${selectedComponents.value.length} component${selectedComponents.value.length !== 1 ? 's' : ''}`
 )
+const canStartRetrieve = computed(() => retrieveName.value.trim().length > 0)
 
 // Pre-flight auth check
 async function onOrgSelected(alias) {
@@ -177,15 +178,15 @@ function tryAgain() {
 </script>
 
 <template>
-  <div :class="currentStepIndex === 1 ? 'max-w-7xl mx-auto px-6 py-4' : 'max-w-5xl mx-auto px-6 py-8'">
+  <div :class="currentStepIndex === 1 ? 'flex flex-col h-[calc(100vh-48px)] px-4 py-3' : 'max-w-5xl mx-auto px-6 py-8'">
     <!-- Page header -->
-    <div class="mb-8">
+    <div :class="currentStepIndex === 1 ? 'mb-3 shrink-0' : 'mb-8'">
       <h1 class="text-2xl font-bold text-[var(--text-primary)]">Retrieve Components</h1>
       <p class="mt-1 text-sm text-[var(--text-secondary)]">Pull metadata from a Salesforce org</p>
     </div>
 
     <!-- Wizard pill stepper -->
-    <div class="mb-8">
+    <div :class="currentStepIndex === 1 ? 'mb-3 shrink-0' : 'mb-8'">
       <GlassPillStepper
         :steps="steps"
         :current-step="currentStepKey"
@@ -249,18 +250,22 @@ function tryAgain() {
       </div>
 
       <!-- ==================== STEP 2: Select Components ==================== -->
-      <div v-else-if="currentStepIndex === 1" key="step-1" class="flex flex-col" style="height: calc(100vh - 200px);">
+      <div v-else-if="currentStepIndex === 1" key="step-1" class="flex flex-col flex-1 min-h-0 overflow-hidden">
         <!-- Mode toggle + header -->
-        <div class="mb-4">
-          <h2 class="text-lg font-semibold text-[var(--text-primary)] mb-1">Select Components</h2>
-          <p class="text-sm text-[var(--text-muted)] mb-4">
-            Choose which metadata to retrieve from {{ selectedOrgObj?.alias || selectedOrg }}
-          </p>
-          <GlassToggle
-            :options="modeOptions"
-            :model-value="retrieveMode"
-            @update:model-value="retrieveMode = $event"
-          />
+        <div class="mb-3 shrink-0">
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <h2 class="text-lg font-semibold text-[var(--text-primary)]">Select Components</h2>
+              <p class="text-sm text-[var(--text-muted)]">
+                Choose which metadata to retrieve from {{ selectedOrgObj?.alias || selectedOrg }}
+              </p>
+            </div>
+            <GlassToggle
+              :options="modeOptions"
+              :model-value="retrieveMode"
+              @update:model-value="retrieveMode = $event"
+            />
+          </div>
         </div>
 
         <!-- All changes info -->
@@ -303,15 +308,17 @@ function tryAgain() {
             Confirm the details before starting the retrieve
           </p>
 
-          <!-- Retrieve name -->
+          <!-- Retrieve name (required) -->
           <div class="mb-5">
             <GlassInput
               v-model="retrieveName"
-              label="Retrieve Name"
+              label="Retrieve Name *"
               type="text"
               placeholder="e.g. Flow updates for March release"
             />
-            <p class="mt-1.5 text-xs text-[var(--text-muted)]">Give this retrieve a name so you can find it later when deploying.</p>
+            <p class="mt-1.5 text-xs" :class="retrieveName.trim() ? 'text-[var(--text-muted)]' : 'text-[var(--color-error)]'">
+              {{ retrieveName.trim() ? 'This name will be used for the workspace folder.' : 'A name is required to start the retrieve.' }}
+            </p>
           </div>
 
           <!-- Summary card -->
@@ -365,7 +372,7 @@ function tryAgain() {
           <!-- Navigation -->
           <div class="mt-6 flex justify-between">
             <GlassButton variant="ghost" @click="back">Back</GlassButton>
-            <GlassButton variant="primary" @click="next">Start Retrieve</GlassButton>
+            <GlassButton variant="primary" :disabled="!canStartRetrieve" @click="next">Start Retrieve</GlassButton>
           </div>
         </GlassCard>
       </div>

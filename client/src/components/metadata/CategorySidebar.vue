@@ -18,12 +18,20 @@ const emit = defineEmits([
 ])
 
 const activeTab = ref('categories')
-const collapsed = ref(false)
 
 // Total component count across all categories
 const totalCount = computed(() =>
   props.categories.reduce((sum, cat) => sum + (cat.components?.length || 0), 0)
 )
+
+// Split categories: those with components vs empty
+const populatedCategories = computed(() =>
+  props.categories.filter(cat => (cat.components?.length || 0) > 0)
+)
+const emptyCategories = computed(() =>
+  props.categories.filter(cat => (cat.components?.length || 0) === 0)
+)
+const showEmptyCategories = ref(false)
 
 // Per-category selection count
 function selectionCount(category) {
@@ -46,19 +54,7 @@ const selectedByCategory = computed(() => {
   return groups
 })
 
-// Category initial(s): up to 2 chars from first letters of words
-function categoryInitial(name) {
-  const words = name.split(/[\s_/-]+/).filter(Boolean)
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase()
-  return (words[0][0] + words[1][0]).toUpperCase()
-}
-
 function handleCategoryClick(categoryName) {
-  if (collapsed.value) {
-    collapsed.value = false
-    emit('select-category', categoryName)
-    return
-  }
   // Clicking active category deselects (goes to All)
   if (props.activeCategory === categoryName) {
     emit('select-category', null)
@@ -76,82 +72,29 @@ function isAllSelected(category) {
 </script>
 
 <template>
-  <!-- Collapsed state -->
   <div
-    v-if="collapsed"
-    class="flex flex-col h-full border-r"
-    style="width: 48px; background: rgba(255,255,255,0.015); border-color: var(--glass-border);"
-  >
-    <!-- Expand button -->
-    <button
-      class="h-9 flex items-center justify-center cursor-pointer transition-colors text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-      style="border-bottom: 1px solid var(--glass-border);"
-      title="Expand sidebar"
-      @click="collapsed = false"
-    >
-      <span class="text-[11px] font-medium">&gt;&gt;</span>
-    </button>
-
-    <!-- Category initials -->
-    <div class="flex-1 overflow-y-auto py-1">
-      <!-- All -->
-      <button
-        class="relative w-full h-8 flex items-center justify-center cursor-pointer transition-all"
-        :style="activeCategory === null
-          ? 'background: var(--color-primary); color: white;'
-          : 'color: var(--text-muted);'"
-        title="All"
-        @click="emit('select-category', null)"
-      >
-        <span class="text-[10px] font-bold">ALL</span>
-      </button>
-
-      <button
-        v-for="cat in categories"
-        :key="cat.name"
-        class="relative w-full h-8 flex items-center justify-center cursor-pointer transition-all"
-        :style="activeCategory === cat.name
-          ? 'background: var(--color-primary); color: white;'
-          : 'color: var(--text-muted);'"
-        :title="cat.name"
-        @click="handleCategoryClick(cat.name)"
-      >
-        <span class="text-[10px] font-bold leading-none">{{ categoryInitial(cat.name) }}</span>
-        <!-- Selection dot -->
-        <span
-          v-if="selectionCount(cat) > 0 && activeCategory !== cat.name"
-          class="absolute top-1 right-1.5 w-1.5 h-1.5 rounded-full"
-          style="background: var(--color-primary);"
-        />
-      </button>
-    </div>
-  </div>
-
-  <!-- Expanded state -->
-  <div
-    v-else
-    class="flex flex-col h-full border-r"
+    class="flex flex-col h-full border-r shrink-0"
     style="width: 200px; background: rgba(255,255,255,0.015); border-color: var(--glass-border);"
   >
-    <!-- Tab bar -->
+    <!-- Tab bar — matches search bar height (px-3 py-2.5 = same as ComponentList search row) -->
     <div
-      class="flex shrink-0"
+      class="flex shrink-0 px-1 py-2.5 gap-1"
       style="border-bottom: 1px solid var(--glass-border);"
     >
       <button
-        class="flex-1 py-2 text-[11px] font-medium cursor-pointer transition-colors"
+        class="flex-1 py-1 text-[11px] font-medium cursor-pointer transition-colors rounded-md"
         :style="activeTab === 'categories'
-          ? 'color: var(--color-primary); border-bottom: 2px solid var(--color-primary);'
-          : 'color: var(--text-muted); border-bottom: 2px solid transparent;'"
+          ? 'color: var(--color-primary); background: var(--color-primary-bg);'
+          : 'color: var(--text-muted);'"
         @click="activeTab = 'categories'"
       >
         Categories
       </button>
       <button
-        class="flex-1 py-2 text-[11px] font-medium cursor-pointer transition-colors"
+        class="flex-1 py-1 text-[11px] font-medium cursor-pointer transition-colors rounded-md"
         :style="activeTab === 'selected'
-          ? 'color: var(--color-primary); border-bottom: 2px solid var(--color-primary);'
-          : 'color: var(--text-muted); border-bottom: 2px solid transparent;'"
+          ? 'color: var(--color-primary); background: var(--color-primary-bg);'
+          : 'color: var(--text-muted);'"
         @click="activeTab = 'selected'"
       >
         Selected ({{ selectedComponents.length }})
@@ -178,9 +121,9 @@ function isAllSelected(category) {
           >{{ totalCount }}</span>
         </button>
 
-        <!-- Category rows -->
+        <!-- Category rows (only categories with components) -->
         <button
-          v-for="cat in categories"
+          v-for="cat in populatedCategories"
           :key="cat.name"
           class="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-left cursor-pointer transition-all"
           :style="[
@@ -219,48 +162,75 @@ function isAllSelected(category) {
             </template>
           </span>
         </button>
+
+        <!-- Empty categories collapsible group -->
+        <template v-if="emptyCategories.length > 0 && !isSearching">
+          <button
+            class="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-left cursor-pointer transition-all"
+            style="color: var(--text-muted); border-top: 1px solid var(--glass-border); margin-top: 4px; padding-top: 8px;"
+            @click="showEmptyCategories = !showEmptyCategories"
+            @mouseover="(e) => e.currentTarget.style.background = 'var(--glass-bg-hover)'"
+            @mouseleave="(e) => e.currentTarget.style.background = ''"
+          >
+            <svg
+              class="w-3 h-3 shrink-0 transition-transform duration-200"
+              :class="showEmptyCategories ? 'rotate-90' : ''"
+              fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+            </svg>
+            <span class="text-[11px] font-medium truncate flex-1">No Components</span>
+            <span class="text-[10px] shrink-0">{{ emptyCategories.length }}</span>
+          </button>
+          <template v-if="showEmptyCategories">
+            <button
+              v-for="cat in emptyCategories"
+              :key="cat.name"
+              class="w-full flex items-center gap-1.5 px-2.5 py-1 pl-6 text-left cursor-pointer transition-all"
+              :style="[
+                activeCategory === cat.name
+                  ? 'background: var(--color-primary); color: white;'
+                  : 'color: var(--text-muted);'
+              ]"
+              @click="handleCategoryClick(cat.name)"
+              @mouseover="(e) => { if (activeCategory !== cat.name) e.currentTarget.style.background = 'var(--glass-bg-hover)' }"
+              @mouseleave="(e) => { if (activeCategory !== cat.name) e.currentTarget.style.background = '' }"
+            >
+              <span class="text-[11px] truncate flex-1">{{ cat.name }}</span>
+              <span class="text-[10px] shrink-0">0</span>
+            </button>
+          </template>
+        </template>
       </div>
 
-      <!-- Bottom bar -->
+      <!-- Bottom bar: Select all (no collapse button) -->
       <div
+        v-if="activeCategory !== null"
         class="shrink-0 flex items-center gap-1 px-2 py-1.5"
         style="border-top: 1px solid var(--glass-border);"
       >
-        <!-- Select all checkbox (only when a category is active) -->
-        <template v-if="activeCategory !== null">
-          <button
-            class="flex items-center gap-1.5 flex-1 cursor-pointer group"
-            @click="emit('toggle-all-category', activeCategory)"
-          >
-            <span
-              class="relative w-[14px] h-[14px] shrink-0 rounded-[3px] border-[1.5px] transition-all"
-              :style="isAllSelected(categories.find(c => c.name === activeCategory))
-                ? 'border-color: var(--color-primary); background: var(--color-primary);'
-                : 'border-color: var(--glass-border-hover);'"
-            >
-              <svg
-                v-if="isAllSelected(categories.find(c => c.name === activeCategory))"
-                class="absolute inset-0 text-white"
-                width="14" height="14" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"
-              >
-                <path d="M6 12L10 16L18 8" />
-              </svg>
-            </span>
-            <span class="text-[10px] text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-colors truncate">
-              Select all
-            </span>
-          </button>
-        </template>
-        <div v-else class="flex-1" />
-
-        <!-- Collapse button -->
         <button
-          class="text-[11px] font-medium text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer transition-colors px-1"
-          title="Collapse sidebar"
-          @click="collapsed = true"
+          class="flex items-center gap-1.5 flex-1 cursor-pointer group"
+          @click="emit('toggle-all-category', activeCategory)"
         >
-          «
+          <span
+            class="relative w-[14px] h-[14px] shrink-0 rounded-[3px] border-[1.5px] transition-all"
+            :style="isAllSelected(categories.find(c => c.name === activeCategory))
+              ? 'border-color: var(--color-primary); background: var(--color-primary);'
+              : 'border-color: var(--glass-border-hover);'"
+          >
+            <svg
+              v-if="isAllSelected(categories.find(c => c.name === activeCategory))"
+              class="absolute inset-0 text-white"
+              width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"
+            >
+              <path d="M6 12L10 16L18 8" />
+            </svg>
+          </span>
+          <span class="text-[10px] text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-colors truncate">
+            Select all
+          </span>
         </button>
       </div>
     </div>

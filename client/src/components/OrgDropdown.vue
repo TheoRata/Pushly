@@ -140,7 +140,7 @@ watch(query, () => { highlightIndex.value = 0 })
       <div
         v-if="open"
         class="absolute z-50 mt-1 w-full rounded-[var(--radius-lg)] border border-[var(--glass-border)] shadow-xl overflow-hidden"
-        style="background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);"
+        style="background: var(--nav-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);"
       >
         <!-- Search -->
         <div class="p-2 border-b border-[var(--glass-border)]">

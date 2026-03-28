@@ -29,7 +29,7 @@ const icons = {
 </script>
 
 <template>
-  <nav class="fixed top-0 left-0 right-0 z-40 h-14 flex items-center px-4 glass border-t-0 border-l-0 border-r-0 rounded-none border-b border-b-[var(--glass-border)]" style="backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);">
+  <nav class="fixed top-0 left-0 right-0 z-40 h-14 flex items-center px-4 glass border-t-0 border-l-0 border-r-0 rounded-none border-b border-b-[var(--glass-border)]" style="background: var(--nav-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);">
     <router-link to="/" class="flex items-center gap-2 mr-8">
       <div class="w-7 h-7 rounded-[var(--radius-sm)] bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-end)] flex items-center justify-center">
         <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">

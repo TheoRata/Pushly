@@ -7,7 +7,7 @@ const props = defineProps({
   searchQuery: { type: String, default: '' },
 })
 
-const emit = defineEmits(['toggle'])
+const emit = defineEmits(['toggle', 'drill'])
 
 function highlight(text) {
   const q = props.searchQuery
@@ -80,6 +80,18 @@ function formatDate(dateStr) {
       v-if="component.lastModified"
       class="text-xs text-[var(--text-muted)] shrink-0 w-16 text-right"
     >{{ formatDate(component.lastModified) }}</span>
+
+    <!-- Drill-down chevron for CustomObject -->
+    <button
+      v-if="component.type === 'CustomObject'"
+      class="shrink-0 w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--glass-bg-active)] transition-colors"
+      title="View fields"
+      @click.stop="emit('drill', component)"
+    >
+      <svg class="w-3.5 h-3.5 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+      </svg>
+    </button>
   </div>
 </template>
 
