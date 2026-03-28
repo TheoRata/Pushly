@@ -11,7 +11,7 @@ if ! command -v node &> /dev/null; then
     exit 1
 fi
 [ ! -d "node_modules" ] && npm install
-[ ! -d "server/node_modules" ] && cd server && npm install && cd ..
+[ ! -d "server/node_modules" ] && (cd server && npm install)
 [ ! -d "client/dist" ] && npm run build
 # Server opens browser itself via the `open` npm package
 node server/index.js
