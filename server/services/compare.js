@@ -41,3 +41,77 @@ export function diffInventories(sourceList, targetList) {
 
   return result
 }
+
+// ── Property Extractor Registry ─────────────────────────────────────
+
+function getTag(xml, tag) {
+  const match = xml.match(new RegExp(`<${tag}>([^<]*)</${tag}>`))
+  return match ? match[1] : null
+}
+
+const extractors = {
+  Flow: (xml) => ({
+    'API Version': getTag(xml, 'apiVersion'),
+    'Status': getTag(xml, 'status'),
+    'Process Type': getTag(xml, 'processType'),
+    'Description': getTag(xml, 'description'),
+  }),
+  CustomField: (xml) => ({
+    'Label': getTag(xml, 'label'),
+    'Field Type': getTag(xml, 'type'),
+    'Required': getTag(xml, 'required'),
+    'Default Value': getTag(xml, 'defaultValue'),
+  }),
+  CustomObject: (xml) => ({
+    'Label': getTag(xml, 'label'),
+    'Sharing Model': getTag(xml, 'sharingModel'),
+    'Description': getTag(xml, 'description'),
+  }),
+  ApexClass: (xml) => ({
+    'API Version': getTag(xml, 'apiVersion'),
+    'Status': getTag(xml, 'status'),
+  }),
+  ApexTrigger: (xml) => ({
+    'API Version': getTag(xml, 'apiVersion'),
+    'Status': getTag(xml, 'status'),
+  }),
+  Layout: (xml) => ({
+    'Layout Type': getTag(xml, 'layoutType') || 'Standard',
+  }),
+  PermissionSet: (xml) => ({
+    'Label': getTag(xml, 'label'),
+    'License': getTag(xml, 'license'),
+  }),
+  Profile: (xml) => ({
+    'License': getTag(xml, 'userLicense'),
+  }),
+  ValidationRule: (xml) => {
+    let formula = getTag(xml, 'formula') || ''
+    if (formula.length > 200) formula = formula.slice(0, 200) + '…'
+    return {
+      'Active': getTag(xml, 'active'),
+      'Error Message': getTag(xml, 'errorMessage'),
+      'Formula': formula,
+    }
+  },
+}
+
+export function extractProperties(xml, metadataType) {
+  if (!xml || typeof xml !== 'string' || !xml.includes('<')) {
+    return { error: 'Could not parse metadata' }
+  }
+
+  const extractor = extractors[metadataType]
+  if (extractor) {
+    const props = extractor(xml)
+    for (const key of Object.keys(props)) {
+      if (props[key] === null) delete props[key]
+    }
+    return props
+  }
+
+  const fallback = {}
+  const apiVersion = getTag(xml, 'apiVersion')
+  if (apiVersion) fallback['API Version'] = apiVersion
+  return fallback
+}

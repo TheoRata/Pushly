@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { diffInventories } from '../services/compare.js'
+import { diffInventories, extractProperties } from '../services/compare.js'
 
 function makeComponent(type, fullName, lastModifiedDate = '2026-01-01T00:00:00Z') {
   return { type, fullName, lastModifiedDate }
@@ -66,5 +66,70 @@ describe('diffInventories', () => {
     expect(result.unchanged[0].fullName).toBe('Account.Name')
     expect(result.deleted).toHaveLength(1)
     expect(result.deleted[0].fullName).toBe('Old_Layout')
+  })
+})
+
+describe('extractProperties', () => {
+  it('extracts Flow properties', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<Flow xmlns="http://soap.sforce.com/2006/04/metadata">
+  <apiVersion>59.0</apiVersion>
+  <status>Active</status>
+  <processType>AutoLaunchedFlow</processType>
+  <description>Assigns leads to reps</description>
+  <label>Lead Assignment</label>
+</Flow>`
+    const props = extractProperties(xml, 'Flow')
+    expect(props).toEqual({
+      'API Version': '59.0',
+      'Status': 'Active',
+      'Process Type': 'AutoLaunchedFlow',
+      'Description': 'Assigns leads to reps',
+    })
+  })
+
+  it('extracts CustomField properties', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+  <fullName>Industry__c</fullName>
+  <label>Industry</label>
+  <type>Picklist</type>
+  <required>false</required>
+  <defaultValue>Technology</defaultValue>
+</CustomField>`
+    const props = extractProperties(xml, 'CustomField')
+    expect(props).toEqual({
+      'Label': 'Industry',
+      'Field Type': 'Picklist',
+      'Required': 'false',
+      'Default Value': 'Technology',
+    })
+  })
+
+  it('extracts ApexClass properties', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<ApexClass xmlns="http://soap.sforce.com/2006/04/metadata">
+  <apiVersion>59.0</apiVersion>
+  <status>Active</status>
+</ApexClass>`
+    const props = extractProperties(xml, 'ApexClass')
+    expect(props).toEqual({
+      'API Version': '59.0',
+      'Status': 'Active',
+    })
+  })
+
+  it('returns fallback for unsupported types', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<SomeUnknownType xmlns="http://soap.sforce.com/2006/04/metadata">
+  <apiVersion>59.0</apiVersion>
+</SomeUnknownType>`
+    const props = extractProperties(xml, 'SomeUnknownType')
+    expect(props).toEqual({ 'API Version': '59.0' })
+  })
+
+  it('handles malformed XML gracefully', () => {
+    const props = extractProperties('not xml at all', 'Flow')
+    expect(props).toEqual({ error: 'Could not parse metadata' })
   })
 })
