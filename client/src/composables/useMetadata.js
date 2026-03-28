@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue'
 import { useApi } from './useApi'
+import { buildSearchIndex, fuzzySearch, matchCountsByCategory } from './useFuzzySearch.js'
 
 const api = useApi()
 
@@ -8,9 +9,15 @@ export function useMetadata() {
   const loading = ref(false)
   const searchQuery = ref('')
   const recentOnly = ref(false)
+  const activeCategory = ref(null)
 
   let debounceTimer = null
   let currentOrgAlias = null
+  let searchIndex = new Map()
+
+  function rebuildIndex() {
+    searchIndex = buildSearchIndex(categories.value)
+  }
 
   /**
    * Fetches types from GET /api/metadata/:orgAlias/types
@@ -78,6 +85,7 @@ export function useMetadata() {
       }
       // Trigger reactivity
       categories.value = [...categories.value]
+      rebuildIndex()
     } catch (err) {
       loading.value = false
       console.error('Failed to load metadata:', err)
@@ -86,13 +94,13 @@ export function useMetadata() {
   }
 
   /**
-   * Debounced (300ms) filter across all categories.
+   * Debounced (150ms) filter across all categories.
    */
   function search(query) {
     clearTimeout(debounceTimer)
     debounceTimer = setTimeout(() => {
       searchQuery.value = query
-    }, 300)
+    }, 150)
   }
 
   /**
@@ -103,21 +111,80 @@ export function useMetadata() {
   }
 
   /**
+   * Sets the active category for filtering.
+   */
+  function setActiveCategory(categoryName) {
+    activeCategory.value = categoryName
+  }
+
+  /**
+   * Fuzzy search results for the current query and active category.
+   * Returns null when no search is active.
+   */
+  const searchResults = computed(() => {
+    return fuzzySearch(searchIndex, searchQuery.value, activeCategory.value)
+  })
+
+  /**
+   * Match counts per category across ALL categories (ignores activeCategory filter).
+   * Returns empty Map when not searching.
+   */
+  const searchMatchCounts = computed(() => {
+    if (!searchQuery.value || !searchQuery.value.trim()) return new Map()
+    const allResults = fuzzySearch(searchIndex, searchQuery.value, null)
+    if (!allResults) return new Map()
+    return matchCountsByCategory(allResults)
+  })
+
+  /**
+   * The primary list of components to display.
+   * - Search active: fuzzy results (filtered by activeCategory)
+   * - No search + category selected: that category's components
+   * - No search + no category: all components across all categories
+   * Then applies recentOnly filter if active.
+   */
+  const displayedComponents = computed(() => {
+    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+
+    let components
+    if (searchResults.value !== null) {
+      components = searchResults.value.map(r => r.component)
+    } else if (activeCategory.value) {
+      const cat = categories.value.find(c => c.name === activeCategory.value)
+      components = cat ? cat.components : []
+    } else {
+      components = categories.value.flatMap(c => c.components)
+    }
+
+    if (recentOnly.value) {
+      components = components.filter(c => {
+        if (!c.lastModified) return false
+        return new Date(c.lastModified).getTime() > sevenDaysAgo
+      })
+    }
+
+    return components
+  })
+
+  /**
    * Filtered categories based on search and recent filters.
+   * Uses searchMatchCounts for efficiency when searching.
    */
   const filteredCategories = computed(() => {
-    const query = searchQuery.value.toLowerCase()
+    const isSearching = searchQuery.value && searchQuery.value.trim()
     const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
 
     return categories.value.map((cat) => {
       let components = cat.components
 
-      if (query) {
-        components = components.filter(
-          (c) =>
-            c.fullName.toLowerCase().includes(query) ||
-            c.type.toLowerCase().includes(query)
-        )
+      if (isSearching) {
+        const count = searchMatchCounts.value.get(cat.name) ?? 0
+        if (count === 0) return null
+        // Use fuzzy results for this category
+        const catResults = searchResults.value !== null
+          ? searchResults.value.filter(r => r.categoryName === cat.name).map(r => r.component)
+          : []
+        components = catResults
       }
 
       if (recentOnly.value) {
@@ -125,14 +192,11 @@ export function useMetadata() {
           if (!c.lastModified) return false
           return new Date(c.lastModified).getTime() > sevenDaysAgo
         })
+        if (components.length === 0) return null
       }
 
       return { ...cat, components }
-    }).filter((cat) => {
-      // If searching, hide categories with no matching components
-      if (query || recentOnly.value) return cat.components.length > 0
-      return true
-    })
+    }).filter(Boolean)
   })
 
   /**
@@ -196,6 +260,7 @@ export function useMetadata() {
         cat.loading = false
       }
       categories.value = [...categories.value]
+      rebuildIndex()
     } catch (err) {
       for (const cat of categories.value) { cat.loading = false }
       categories.value = [...categories.value]
@@ -250,6 +315,7 @@ export function useMetadata() {
         cat.loading = false
       }
       categories.value = [...categories.value]
+      rebuildIndex()
     } catch (err) {
       for (const cat of categories.value) { cat.loading = false }
       categories.value = [...categories.value]
@@ -261,13 +327,17 @@ export function useMetadata() {
   return {
     categories,
     filteredCategories,
+    displayedComponents,
     loading,
     searchQuery,
     recentOnly,
+    activeCategory,
+    searchMatchCounts,
     loadMetadata,
     refreshAll,
     refreshTypes,
     search,
     toggleRecentlyModified,
+    setActiveCategory,
   }
 }
