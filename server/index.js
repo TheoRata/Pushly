@@ -11,7 +11,7 @@ import { cleanupStaleLocks } from './services/lock.js'
 import { cleanupOldWorkspaces } from './services/workspace.js'
 import { cleanupOldSnapshots } from './services/rollback.js'
 import { archiveOldRecords } from './services/history.js'
-import { registerClient, unregisterClient, getActiveOperations } from './services/operations.js'
+import { registerClient, unregisterClient, getActiveOperations, cleanupCompletedOperations } from './services/operations.js'
 import { initCache } from './services/metadata-cache.js'
 
 import { checkPrerequisites } from './utils/prerequisites.js'
@@ -38,12 +38,16 @@ cleanupStaleLocks(dataDir)
 cleanupOldWorkspaces(30, baseDir)
 cleanupOldSnapshots(90, dataDir)
 archiveOldRecords(dataDir, 180)
+cleanupCompletedOperations()
 
 // Initialize metadata cache from disk
 initCache(baseDir)
 
+// Clean up completed operations every 30 minutes
+setInterval(() => cleanupCompletedOperations(), 30 * 60 * 1000)
+
 const app = express()
-app.use(express.json())
+app.use(express.json({ limit: '1mb' }))
 
 // Make paths available to routes
 app.locals.dataDir = dataDir
