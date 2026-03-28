@@ -123,15 +123,14 @@ const CATEGORY_MAP = {
  */
 router.get('/:orgAlias/types', async (req, res) => {
   const { orgAlias } = req.params
-  const baseDir = req.app.locals.baseDir
 
   try {
-    let metadataTypes = getCachedTypes(orgAlias, baseDir)
+    let metadataTypes = getCachedTypes(orgAlias)
 
     if (!metadataTypes) {
       const result = await listMetadataTypes(orgAlias)
       metadataTypes = result.metadataObjects || result || []
-      setCachedTypes(orgAlias, metadataTypes, baseDir)
+      setCachedTypes(orgAlias, metadataTypes)
     }
 
     // Group into categories
@@ -155,14 +154,13 @@ router.get('/:orgAlias/types', async (req, res) => {
 router.get('/:orgAlias/components', async (req, res) => {
   const { orgAlias } = req.params
   const { type } = req.query
-  const baseDir = req.app.locals.baseDir
 
   if (!type) {
     return res.status(400).json({ error: 'type query parameter is required' })
   }
 
   try {
-    const cached = getCachedComponents(orgAlias, type, baseDir)
+    const cached = getCachedComponents(orgAlias, type)
     if (cached) {
       return res.json({ components: cached })
     }
@@ -170,7 +168,7 @@ router.get('/:orgAlias/components', async (req, res) => {
     const components = await listMetadata(orgAlias, type)
     const componentList = Array.isArray(components) ? components : [components].filter(Boolean)
 
-    setCachedComponents(orgAlias, type, componentList, baseDir)
+    setCachedComponents(orgAlias, type, componentList)
 
     res.json({ components: componentList })
   } catch (err) {
@@ -189,8 +187,7 @@ router.get('/:orgAlias/search', async (req, res) => {
     return res.status(400).json({ error: 'q query parameter is required' })
   }
 
-  const baseDir = req.app.locals.baseDir
-  const types = getCachedTypes(orgAlias, baseDir)
+  const types = getCachedTypes(orgAlias)
   if (!types) {
     return res.json({ results: [], message: 'No cached metadata. Refresh first.' })
   }
@@ -201,7 +198,7 @@ router.get('/:orgAlias/search', async (req, res) => {
   // Search through all cached component lists
   for (const mt of types) {
     const typeName = mt.xmlName || mt
-    const components = getCachedComponents(orgAlias, typeName, baseDir)
+    const components = getCachedComponents(orgAlias, typeName)
     if (!Array.isArray(components)) continue
 
     for (const component of components) {
@@ -232,7 +229,6 @@ router.post('/:orgAlias/batch-components', async (req, res) => {
     return res.status(400).json({ error: 'types must be a non-empty array' })
   }
 
-  const baseDir = req.app.locals.baseDir
   const output = {}
 
   // Separate types into those already cached and those that need fetching.
@@ -243,7 +239,7 @@ router.post('/:orgAlias/batch-components', async (req, res) => {
       uncachedTypes.push(type)
       continue
     }
-    const cached = getCachedComponents(orgAlias, type, baseDir)
+    const cached = getCachedComponents(orgAlias, type)
     if (cached) {
       output[type] = cached
     } else {
@@ -259,7 +255,7 @@ router.post('/:orgAlias/batch-components', async (req, res) => {
   const tasks = uncachedTypes.map((type) => async () => {
     const raw = await listMetadata(orgAlias, type)
     const components = Array.isArray(raw) ? raw : [raw].filter(Boolean)
-    setCachedComponents(orgAlias, type, components, baseDir)
+    setCachedComponents(orgAlias, type, components)
     return { type, components }
   })
 
@@ -288,13 +284,12 @@ router.post('/:orgAlias/batch-components', async (req, res) => {
  */
 router.post('/:orgAlias/refresh', async (req, res) => {
   const { orgAlias } = req.params
-  const baseDir = req.app.locals.baseDir
 
   try {
-    clearOrgCache(orgAlias, baseDir)
+    clearOrgCache(orgAlias)
     const result = await listMetadataTypes(orgAlias)
     const metadataTypes = result.metadataObjects || result || []
-    setCachedTypes(orgAlias, metadataTypes, baseDir)
+    setCachedTypes(orgAlias, metadataTypes)
 
     // Group into categories for the response
     const grouped = {}
