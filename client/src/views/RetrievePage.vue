@@ -177,7 +177,7 @@ function tryAgain() {
 </script>
 
 <template>
-  <div class="max-w-5xl mx-auto px-6 py-8">
+  <div :class="currentStepIndex === 1 ? 'max-w-7xl mx-auto px-6 py-4' : 'max-w-5xl mx-auto px-6 py-8'">
     <!-- Page header -->
     <div class="mb-8">
       <h1 class="text-2xl font-bold text-[var(--text-primary)]">Retrieve Components</h1>
@@ -249,58 +249,50 @@ function tryAgain() {
       </div>
 
       <!-- ==================== STEP 2: Select Components ==================== -->
-      <div v-else-if="currentStepIndex === 1" key="step-1">
-        <GlassCard padding="lg">
+      <div v-else-if="currentStepIndex === 1" key="step-1" class="flex flex-col" style="height: calc(100vh - 200px);">
+        <!-- Mode toggle + header -->
+        <div class="mb-4">
           <h2 class="text-lg font-semibold text-[var(--text-primary)] mb-1">Select Components</h2>
-          <p class="text-sm text-[var(--text-muted)] mb-5">
+          <p class="text-sm text-[var(--text-muted)] mb-4">
             Choose which metadata to retrieve from {{ selectedOrgObj?.alias || selectedOrg }}
           </p>
+          <GlassToggle
+            :options="modeOptions"
+            :model-value="retrieveMode"
+            @update:model-value="retrieveMode = $event"
+          />
+        </div>
 
-          <!-- Mode toggle -->
-          <div class="mb-5">
-            <GlassToggle
-              :options="modeOptions"
-              :model-value="retrieveMode"
-              @update:model-value="retrieveMode = $event"
-            />
-          </div>
-
-          <!-- All changes info -->
-          <div v-if="retrieveMode === 'all'" class="rounded-[var(--radius-md)] bg-[var(--color-primary-bg)] border border-[var(--color-primary-border)] p-4">
+        <!-- All changes info -->
+        <div v-if="retrieveMode === 'all'" class="flex-1">
+          <GlassCard padding="lg">
             <div class="flex items-start gap-3">
               <svg class="w-5 h-5 text-[var(--color-primary)] shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
               </svg>
               <div>
                 <p class="text-sm text-[var(--text-primary)] font-medium">All metadata will be retrieved from this org</p>
-                <p class="text-xs text-[var(--text-muted)] mt-1">
-                  This may take several minutes for large orgs with many customizations.
-                </p>
+                <p class="text-xs text-[var(--text-muted)] mt-1">This may take several minutes for large orgs with many customizations.</p>
               </div>
             </div>
-          </div>
+            <div class="mt-6 flex justify-between">
+              <GlassButton variant="ghost" @click="back">Back</GlassButton>
+              <GlassButton variant="primary" @click="next">Next</GlassButton>
+            </div>
+          </GlassCard>
+        </div>
 
-          <!-- Cherry pick tree -->
-          <div v-else class="rounded-[var(--radius-md)] border border-[var(--glass-border)]" style="height: 500px;">
-            <MetadataTree
-              :org-alias="selectedOrg"
-              :model-value="selectedComponents"
-              @update:model-value="selectedComponents = $event"
-            />
-          </div>
-
-          <!-- Navigation -->
-          <div class="mt-6 flex justify-between">
-            <GlassButton variant="ghost" @click="back">Back</GlassButton>
-            <GlassButton
-              variant="primary"
-              :disabled="!canProceedStep2"
-              @click="next"
-            >
-              Next
-            </GlassButton>
-          </div>
-        </GlassCard>
+        <!-- Cherry pick: MetadataTree fills remaining space with built-in footer -->
+        <div v-else class="flex-1 rounded-[var(--radius-md)] border border-[var(--glass-border)] overflow-hidden">
+          <MetadataTree
+            :org-alias="selectedOrg"
+            :model-value="selectedComponents"
+            :can-proceed="canProceedStep2"
+            @update:model-value="selectedComponents = $event"
+            @back="back"
+            @next="next"
+          />
+        </div>
       </div>
 
       <!-- ==================== STEP 3: Review ==================== -->
