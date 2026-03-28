@@ -34,14 +34,14 @@ const dataDir = join(baseDir, 'data')
 })
 
 // Cleanup on startup
-cleanupStaleLocks(dataDir)
+cleanupStaleLocks()
 cleanupOldWorkspaces(30, baseDir)
 cleanupOldSnapshots(90, dataDir)
 archiveOldRecords(dataDir, 180)
 cleanupCompletedOperations()
 
 // Initialize metadata cache from disk
-initCache(baseDir)
+initCache()
 
 // Clean up completed operations every 30 minutes
 setInterval(() => cleanupCompletedOperations(), 30 * 60 * 1000)

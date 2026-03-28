@@ -81,7 +81,7 @@ router.post('/', async (req, res) => {
   const resolvedPath = getWorkspace(workspacePath, baseDir) || workspacePath
 
   // Acquire lock
-  const lockResult = acquireLock(targetOrg, user, components || [], dataDir)
+  const lockResult = acquireLock(targetOrg, user, components || [])
   if (!lockResult.acquired) {
     return res.status(409).json({
       error: 'Deployment already in progress for this org',
@@ -174,7 +174,7 @@ router.post('/', async (req, res) => {
       failedComponents: componentFailures,
     })
   } finally {
-    releaseLock(targetOrg, dataDir)
+    releaseLock(targetOrg)
   }
 })
 
@@ -204,7 +204,7 @@ router.post('/:id/retry-failed', async (req, res) => {
   const resolvedPath = getWorkspace(original.workspacePath, baseDir) || original.workspacePath
 
   // Acquire lock
-  const lockResult = acquireLock(original.targetOrg, user, failedComponents, dataDir)
+  const lockResult = acquireLock(original.targetOrg, user, failedComponents)
   if (!lockResult.acquired) {
     return res.status(409).json({
       error: 'Deployment already in progress for this org',
@@ -251,7 +251,7 @@ router.post('/:id/retry-failed', async (req, res) => {
     writeRecord(record, dataDir)
     completeOperation(retryId, { error: record.error })
   } finally {
-    releaseLock(original.targetOrg, dataDir)
+    releaseLock(original.targetOrg)
   }
 })
 
@@ -287,7 +287,7 @@ router.post('/:id/rollback', async (req, res) => {
   const rollbackId = crypto.randomUUID()
 
   // Acquire lock
-  const lockResult = acquireLock(original.targetOrg, user, original.components || [], dataDir)
+  const lockResult = acquireLock(original.targetOrg, user, original.components || [])
   if (!lockResult.acquired) {
     return res.status(409).json({
       error: 'Deployment already in progress for this org',
@@ -334,7 +334,7 @@ router.post('/:id/rollback', async (req, res) => {
     writeRecord(record, dataDir)
     completeOperation(rollbackId, { error: record.error })
   } finally {
-    releaseLock(original.targetOrg, dataDir)
+    releaseLock(original.targetOrg)
   }
 })
 

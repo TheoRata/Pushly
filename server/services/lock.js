@@ -1,98 +1,68 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { safeName } from '../utils/sanitize.js';
+import { getDb } from './db.js';
 
 const STALE_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
 
 /**
  * Acquires a deploy lock for an org.
  */
-export function acquireLock(orgAlias, user, components, dataDir) {
-  fs.mkdirSync(dataDir, { recursive: true });
-  const lockPath = path.join(dataDir, `${safeName(orgAlias)}.deploy.lock`);
-
-  const lockData = {
-    user,
-    orgAlias,
-    startedAt: new Date().toISOString(),
-    components,
-    pid: process.pid,
-  };
-
-  try {
-    // wx flag = exclusive create — fails atomically if file already exists
-    fs.writeFileSync(lockPath, JSON.stringify(lockData, null, 2), { flag: 'wx' });
-    return { acquired: true };
-  } catch (err) {
-    if (err.code === 'EEXIST') {
-      // Lock file exists — check if it's stale
-      const existing = checkLock(orgAlias, dataDir);
-      if (existing) {
-        return { acquired: false, existingLock: existing };
-      }
-      // Stale lock was cleaned up by checkLock — retry once
-      return acquireLock(orgAlias, user, components, dataDir);
-    }
-    throw err;
+export function acquireLock(orgAlias, user, components) {
+  const db = getDb();
+  const existing = checkLock(orgAlias);
+  if (existing) {
+    return { acquired: false, existingLock: existing };
   }
+  db.prepare(`
+    INSERT OR REPLACE INTO deploy_locks (org_alias, user, components, pid, started_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(orgAlias, user, JSON.stringify(components), process.pid, new Date().toISOString());
+  return { acquired: true };
 }
 
 /**
  * Releases a deploy lock for an org.
  */
-export function releaseLock(orgAlias, dataDir) {
-  const lockPath = path.join(dataDir, `${safeName(orgAlias)}.deploy.lock`);
-  if (fs.existsSync(lockPath)) {
-    fs.unlinkSync(lockPath);
-  }
+export function releaseLock(orgAlias) {
+  getDb().prepare('DELETE FROM deploy_locks WHERE org_alias = ?').run(orgAlias);
 }
 
 /**
  * Checks if a lock exists and is not stale.
  * Returns lock data or null.
  */
-export function checkLock(orgAlias, dataDir) {
-  const lockPath = path.join(dataDir, `${safeName(orgAlias)}.deploy.lock`);
-  if (!fs.existsSync(lockPath)) return null;
+export function checkLock(orgAlias) {
+  const db = getDb();
+  const row = db.prepare('SELECT * FROM deploy_locks WHERE org_alias = ?').get(orgAlias);
+  if (!row) return null;
 
-  try {
-    const data = JSON.parse(fs.readFileSync(lockPath, 'utf-8'));
-    const age = Date.now() - new Date(data.startedAt).getTime();
-    if (age > STALE_THRESHOLD_MS) {
-      // Stale lock — clean it up
-      fs.unlinkSync(lockPath);
-      return null;
-    }
-    return data;
-  } catch {
+  const age = Date.now() - new Date(row.started_at).getTime();
+  if (age > STALE_THRESHOLD_MS) {
+    db.prepare('DELETE FROM deploy_locks WHERE org_alias = ?').run(orgAlias);
     return null;
   }
+
+  return {
+    user: row.user,
+    orgAlias: row.org_alias,
+    startedAt: row.started_at,
+    components: jsonParse(row.components, []),
+    pid: row.pid,
+  };
 }
 
 /**
- * Finds and deletes all stale lock files (older than 30 minutes).
+ * Finds and deletes all stale locks (older than 30 minutes).
  */
-export function cleanupStaleLocks(dataDir) {
-  if (!fs.existsSync(dataDir)) return 0;
+export function cleanupStaleLocks() {
+  const cutoff = new Date(Date.now() - STALE_THRESHOLD_MS).toISOString();
+  const result = getDb().prepare('DELETE FROM deploy_locks WHERE started_at < ?').run(cutoff);
+  return result.changes;
+}
 
-  const files = fs.readdirSync(dataDir).filter(f => f.endsWith('.deploy.lock'));
-  let cleaned = 0;
-
-  for (const file of files) {
-    const filePath = path.join(dataDir, file);
-    try {
-      const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-      const age = Date.now() - new Date(data.startedAt).getTime();
-      if (age > STALE_THRESHOLD_MS) {
-        fs.unlinkSync(filePath);
-        cleaned++;
-      }
-    } catch {
-      // Corrupt lock file — remove it
-      fs.unlinkSync(filePath);
-      cleaned++;
-    }
+function jsonParse(str, fallback) {
+  if (!str) return fallback;
+  try {
+    return JSON.parse(str);
+  } catch {
+    return fallback;
   }
-
-  return cleaned;
 }

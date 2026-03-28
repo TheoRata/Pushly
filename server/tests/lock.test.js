@@ -1,79 +1,75 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import fs from 'node:fs'
-import path from 'node:path'
-import os from 'node:os'
+import { initDb, getDb, closeDb } from '../services/db.js'
 import { acquireLock, releaseLock, checkLock, cleanupStaleLocks } from '../services/lock.js'
 
 describe('lock service', () => {
-  let tmpDir
-
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pushly-lock-test-'))
+    initDb(':memory:')
   })
 
   afterEach(() => {
-    fs.rmSync(tmpDir, { recursive: true, force: true })
+    closeDb()
   })
 
   it('acquires a lock when none exists', () => {
-    const result = acquireLock('myOrg', 'alice', ['Flow:MyFlow'], tmpDir)
+    const result = acquireLock('myOrg', 'alice', ['Flow:MyFlow'])
     expect(result.acquired).toBe(true)
   })
 
   it('rejects a second lock on the same org', () => {
-    acquireLock('myOrg', 'alice', ['Flow:MyFlow'], tmpDir)
-    const result = acquireLock('myOrg', 'bob', ['Flow:Other'], tmpDir)
+    acquireLock('myOrg', 'alice', ['Flow:MyFlow'])
+    const result = acquireLock('myOrg', 'bob', ['Flow:Other'])
     expect(result.acquired).toBe(false)
     expect(result.existingLock.user).toBe('alice')
   })
 
   it('releases a lock', () => {
-    acquireLock('myOrg', 'alice', ['Flow:MyFlow'], tmpDir)
-    releaseLock('myOrg', tmpDir)
-    const check = checkLock('myOrg', tmpDir)
+    acquireLock('myOrg', 'alice', ['Flow:MyFlow'])
+    releaseLock('myOrg')
+    const check = checkLock('myOrg')
     expect(check).toBeNull()
   })
 
   it('re-acquires after release', () => {
-    acquireLock('myOrg', 'alice', ['Flow:MyFlow'], tmpDir)
-    releaseLock('myOrg', tmpDir)
-    const result = acquireLock('myOrg', 'bob', ['Flow:Other'], tmpDir)
+    acquireLock('myOrg', 'alice', ['Flow:MyFlow'])
+    releaseLock('myOrg')
+    const result = acquireLock('myOrg', 'bob', ['Flow:Other'])
     expect(result.acquired).toBe(true)
   })
 
   it('cleans up stale locks', () => {
-    const lockPath = path.join(tmpDir, 'oldOrg.deploy.lock')
-    const staleData = {
-      user: 'alice',
-      orgAlias: 'oldOrg',
-      startedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      components: [],
-      pid: 99999,
-    }
-    fs.writeFileSync(lockPath, JSON.stringify(staleData, null, 2))
-    const cleaned = cleanupStaleLocks(tmpDir)
+    const db = getDb()
+    const staleTime = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+    db.prepare(`
+      INSERT INTO deploy_locks (org_alias, user, components, pid, started_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run('oldOrg', 'alice', '[]', 99999, staleTime)
+
+    const cleaned = cleanupStaleLocks()
     expect(cleaned).toBe(1)
-    expect(fs.existsSync(lockPath)).toBe(false)
+
+    const row = db.prepare('SELECT * FROM deploy_locks WHERE org_alias = ?').get('oldOrg')
+    expect(row).toBeUndefined()
   })
 
-  it('checkLock returns null for stale lock and removes file', () => {
-    const lockPath = path.join(tmpDir, 'staleOrg.deploy.lock')
-    const staleData = {
-      user: 'alice',
-      orgAlias: 'staleOrg',
-      startedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      components: [],
-      pid: 99999,
-    }
-    fs.writeFileSync(lockPath, JSON.stringify(staleData, null, 2))
-    const result = checkLock('staleOrg', tmpDir)
+  it('checkLock returns null for stale lock and removes it', () => {
+    const db = getDb()
+    const staleTime = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+    db.prepare(`
+      INSERT INTO deploy_locks (org_alias, user, components, pid, started_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run('staleOrg', 'alice', '[]', 99999, staleTime)
+
+    const result = checkLock('staleOrg')
     expect(result).toBeNull()
-    expect(fs.existsSync(lockPath)).toBe(false)
+
+    const row = db.prepare('SELECT * FROM deploy_locks WHERE org_alias = ?').get('staleOrg')
+    expect(row).toBeUndefined()
   })
 
   it('checkLock returns data for fresh lock', () => {
-    acquireLock('freshOrg', 'alice', ['Flow:Test'], tmpDir)
-    const result = checkLock('freshOrg', tmpDir)
+    acquireLock('freshOrg', 'alice', ['Flow:Test'])
+    const result = checkLock('freshOrg')
     expect(result).not.toBeNull()
     expect(result.user).toBe('alice')
   })
