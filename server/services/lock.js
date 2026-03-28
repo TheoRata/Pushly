@@ -8,10 +8,8 @@ const STALE_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
  * Acquires a deploy lock for an org.
  */
 export function acquireLock(orgAlias, user, components, dataDir) {
-  const existing = checkLock(orgAlias, dataDir);
-  if (existing) {
-    return { acquired: false, existingLock: existing };
-  }
+  fs.mkdirSync(dataDir, { recursive: true });
+  const lockPath = path.join(dataDir, `${safeName(orgAlias)}.deploy.lock`);
 
   const lockData = {
     user,
@@ -21,11 +19,22 @@ export function acquireLock(orgAlias, user, components, dataDir) {
     pid: process.pid,
   };
 
-  fs.mkdirSync(dataDir, { recursive: true });
-  const lockPath = path.join(dataDir, `${safeName(orgAlias)}.deploy.lock`);
-  fs.writeFileSync(lockPath, JSON.stringify(lockData, null, 2));
-
-  return { acquired: true };
+  try {
+    // wx flag = exclusive create — fails atomically if file already exists
+    fs.writeFileSync(lockPath, JSON.stringify(lockData, null, 2), { flag: 'wx' });
+    return { acquired: true };
+  } catch (err) {
+    if (err.code === 'EEXIST') {
+      // Lock file exists — check if it's stale
+      const existing = checkLock(orgAlias, dataDir);
+      if (existing) {
+        return { acquired: false, existingLock: existing };
+      }
+      // Stale lock was cleaned up by checkLock — retry once
+      return acquireLock(orgAlias, user, components, dataDir);
+    }
+    throw err;
+  }
 }
 
 /**

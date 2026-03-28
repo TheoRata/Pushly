@@ -38,13 +38,16 @@ router.post('/', async (req, res) => {
   if (!orgAlias || !components || !Array.isArray(components) || components.length === 0) {
     return res.status(400).json({ error: 'orgAlias and components array are required' })
   }
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'name is required' })
+  }
 
   const user = resolveUser(dataDir)
   const operationId = crypto.randomUUID()
 
   try {
     // Create workspace
-    const workspace = createWorkspace(user, orgAlias, baseDir)
+    const workspace = createWorkspace(user, orgAlias, baseDir, name.trim())
 
     // Write initial history record
     const record = {

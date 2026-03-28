@@ -21,7 +21,7 @@ describe('workspace service', () => {
 
   describe('createWorkspace', () => {
     it('creates workspace directory with sfdx-project.json', () => {
-      const result = createWorkspace('john', 'DevSandbox', baseDir);
+      const result = createWorkspace('john', 'DevSandbox', baseDir, 'My Retrieve');
 
       expect(result.id).toBeTruthy();
       expect(result.path).toBeTruthy();
@@ -36,20 +36,49 @@ describe('workspace service', () => {
     });
 
     it('creates force-app directory', () => {
-      const result = createWorkspace('john', 'DevSandbox', baseDir);
+      const result = createWorkspace('john', 'DevSandbox', baseDir, 'Test');
       expect(fs.existsSync(path.join(result.path, 'force-app'))).toBe(true);
     });
 
     it('creates workspace under user subdirectory', () => {
-      const result = createWorkspace('john', 'DevSandbox', baseDir);
+      const result = createWorkspace('john', 'DevSandbox', baseDir, 'My Flow Updates');
       expect(result.path).toContain(path.join('workspaces', 'john'));
-      expect(result.path).toContain('DevSandbox');
+    });
+
+    it('uses sanitised name as directory when name is provided', () => {
+      const result = createWorkspace('john', 'DevSandbox', baseDir, 'Flow Updates March!');
+      expect(result.id).toBe('flow-updates-march');
+    });
+
+    it('falls back to orgAlias-timestamp when name is not provided', () => {
+      const result = createWorkspace('john', 'DevSandbox', baseDir);
+      expect(result.id).toMatch(/^DevSandbox-\d+$/);
+    });
+
+    it('handles collision by appending counter', () => {
+      const first = createWorkspace('john', 'Dev', baseDir, 'My Retrieve');
+      const second = createWorkspace('john', 'Dev', baseDir, 'My Retrieve');
+
+      expect(first.id).toBe('my-retrieve');
+      expect(second.id).toBe('my-retrieve-2');
+      expect(fs.existsSync(first.path)).toBe(true);
+      expect(fs.existsSync(second.path)).toBe(true);
+    });
+
+    it('sanitises special characters from name', () => {
+      const result = createWorkspace('john', 'Dev', baseDir, '  Hello!! World @#$ 123  ');
+      expect(result.id).toBe('hello-world-123');
+    });
+
+    it('falls back to "workspace" when name sanitises to empty', () => {
+      const result = createWorkspace('john', 'Dev', baseDir, '!!!');
+      expect(result.id).toBe('workspace');
     });
   });
 
   describe('getWorkspace', () => {
     it('returns workspace path for valid id', () => {
-      const created = createWorkspace('john', 'DevSandbox', baseDir);
+      const created = createWorkspace('john', 'DevSandbox', baseDir, 'Test Retrieve');
       const wsPath = getWorkspace(created.id, baseDir);
       expect(wsPath).toBe(created.path);
     });
@@ -62,9 +91,9 @@ describe('workspace service', () => {
 
   describe('listWorkspaces', () => {
     it('lists workspaces for a user', () => {
-      createWorkspace('john', 'DevSandbox', baseDir);
-      createWorkspace('john', 'Production', baseDir);
-      createWorkspace('alice', 'DevSandbox', baseDir);
+      createWorkspace('john', 'DevSandbox', baseDir, 'First Retrieve');
+      createWorkspace('john', 'Production', baseDir, 'Second Retrieve');
+      createWorkspace('alice', 'DevSandbox', baseDir, 'Alice Retrieve');
 
       const johnWorkspaces = listWorkspaces('john', baseDir);
       expect(johnWorkspaces).toHaveLength(2);
@@ -81,13 +110,13 @@ describe('workspace service', () => {
 
   describe('cleanupOldWorkspaces', () => {
     it('deletes workspaces older than maxAgeDays', () => {
-      const ws = createWorkspace('john', 'OldOrg', baseDir);
+      const ws = createWorkspace('john', 'OldOrg', baseDir, 'Old Retrieve');
 
       // Backdate the workspace directory mtime
       const oldTime = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000);
       fs.utimesSync(ws.path, oldTime, oldTime);
 
-      const recent = createWorkspace('john', 'NewOrg', baseDir);
+      const recent = createWorkspace('john', 'NewOrg', baseDir, 'New Retrieve');
 
       const cleaned = cleanupOldWorkspaces(30, baseDir);
       expect(cleaned).toBeGreaterThanOrEqual(1);

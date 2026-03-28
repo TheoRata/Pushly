@@ -9,12 +9,36 @@ const SFDX_PROJECT = {
 };
 
 /**
- * Creates a workspace directory for a user + org combination.
+ * Sanitise a user-provided name into a filesystem-safe slug.
  */
-export function createWorkspace(username, orgAlias, baseDir) {
-  const timestamp = Date.now();
-  const id = `${orgAlias}-${timestamp}`;
-  const wsPath = path.join(baseDir, 'workspaces', username, id);
+function sanitizeName(name) {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 50) || 'workspace';
+}
+
+/**
+ * Creates a workspace directory for a user + org combination.
+ * When `name` is provided the folder uses the sanitised name;
+ * otherwise falls back to the legacy `{orgAlias}-{timestamp}` format.
+ */
+export function createWorkspace(username, orgAlias, baseDir, name) {
+  const slug = name ? sanitizeName(name) : `${orgAlias}-${Date.now()}`;
+  const userDir = path.join(baseDir, 'workspaces', username);
+
+  // Find a unique id — append counter on collision
+  let id = slug;
+  let counter = 1;
+  while (fs.existsSync(path.join(userDir, id))) {
+    counter++;
+    id = `${slug}-${counter}`;
+  }
+
+  const wsPath = path.join(userDir, id);
 
   fs.mkdirSync(wsPath, { recursive: true });
   fs.mkdirSync(path.join(wsPath, 'force-app'), { recursive: true });
