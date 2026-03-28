@@ -8,6 +8,7 @@ const navItems = [
   { label: 'Dashboard', to: '/', icon: 'grid' },
   { label: 'Orgs', to: '/orgs', icon: 'globe' },
   { label: 'Retrieve', to: '/retrieve', icon: 'download' },
+  { label: 'Compare', to: '/compare', icon: 'columns' },
   { label: 'Deploy', to: '/deploy', icon: 'upload' },
   { label: 'History', to: '/history', icon: 'clock' },
 ]
@@ -23,6 +24,7 @@ const icons = {
   download: 'M12 16l-4-4h2.5V4h3v8H16l-4 4zM4 18h16v2H4v-2z',
   upload: 'M12 8l4 4h-2.5v8h-3v-8H8l4-4zM4 4h16v2H4V4z',
   clock: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z',
+  columns: 'M9 4H5a1 1 0 00-1 1v14a1 1 0 001 1h4a1 1 0 001-1V5a1 1 0 00-1-1zm10 0h-4a1 1 0 00-1 1v14a1 1 0 001 1h4a1 1 0 001-1V5a1 1 0 00-1-1z',
 }
 </script>
 

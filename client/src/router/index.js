@@ -11,6 +11,7 @@ const router = createRouter({
     { path: '/', name: 'dashboard', component: DashboardPage },
     { path: '/orgs', name: 'orgs', component: OrgsPage },
     { path: '/retrieve', name: 'retrieve', component: RetrievePage },
+    { path: '/compare', name: 'compare', component: () => import('../views/ComparePage.vue') },
     { path: '/deploy', name: 'deploy', component: DeployPage },
     { path: '/history', name: 'history', component: HistoryPage },
   ],
