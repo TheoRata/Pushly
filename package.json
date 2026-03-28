@@ -8,12 +8,16 @@
   },
   "license": "Elastic-2.0",
   "private": true,
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "cd server && node --watch index.js",
     "dev:client": "cd client && npx vite",
     "build": "cd client && npx vite build",
     "start": "node server/index.js",
+    "postinstall": "cd server && npm install && cd ../client && npm install",
     "test": "cd server && npx vitest run"
   },
   "devDependencies": {
