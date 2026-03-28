@@ -18,12 +18,12 @@ onMounted(async () => {
   try {
     prereqResult.value = await api.get('/prerequisites')
   } catch {
-    prereqResult.value = { passed: false, checks: [{ name: 'Server', status: 'fail', message: 'Cannot reach server' }] }
+    prereqResult.value = { ok: false, checks: [{ name: 'Server', status: 'fail', message: 'Cannot reach server' }] }
   }
   loading.value = false
 })
 
-const allPassed = () => prereqResult.value?.passed || prereqResult.value?.checks?.every((c) => c.status === 'pass')
+const allPassed = computed(() => prereqResult.value?.ok || prereqResult.value?.checks?.every((c) => c.status === 'pass'))
 </script>
 
 <template>
@@ -32,7 +32,7 @@ const allPassed = () => prereqResult.value?.passed || prereqResult.value?.checks
   </div>
 
   <PrerequisiteError
-    v-else-if="!allPassed()"
+    v-else-if="!allPassed"
     :checks="prereqResult.checks"
     @resolved="prereqResult = $event"
   />
