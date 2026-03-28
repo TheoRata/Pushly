@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { safeName } from '../utils/sanitize.js';
 
 // Module-level in-memory store: Map<orgAlias, { lastRefresh, types, components }>
 // Keyed by dataDir so multiple test instances with different temp dirs don't collide.
@@ -33,7 +34,7 @@ function cacheDir(dataDir) {
  * @returns {string}
  */
 function cacheFilePath(dataDir, orgAlias) {
-  return path.join(cacheDir(dataDir), `${orgAlias}.json`);
+  return path.join(cacheDir(dataDir), `${safeName(orgAlias)}.json`);
 }
 
 /**

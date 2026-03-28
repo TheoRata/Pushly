@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { safeName } from '../utils/sanitize.js';
 
 const STALE_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
 
@@ -21,7 +22,7 @@ export function acquireLock(orgAlias, user, components, dataDir) {
   };
 
   fs.mkdirSync(dataDir, { recursive: true });
-  const lockPath = path.join(dataDir, `${orgAlias}.deploy.lock`);
+  const lockPath = path.join(dataDir, `${safeName(orgAlias)}.deploy.lock`);
   fs.writeFileSync(lockPath, JSON.stringify(lockData, null, 2));
 
   return { acquired: true };
@@ -31,7 +32,7 @@ export function acquireLock(orgAlias, user, components, dataDir) {
  * Releases a deploy lock for an org.
  */
 export function releaseLock(orgAlias, dataDir) {
-  const lockPath = path.join(dataDir, `${orgAlias}.deploy.lock`);
+  const lockPath = path.join(dataDir, `${safeName(orgAlias)}.deploy.lock`);
   if (fs.existsSync(lockPath)) {
     fs.unlinkSync(lockPath);
   }
@@ -42,7 +43,7 @@ export function releaseLock(orgAlias, dataDir) {
  * Returns lock data or null.
  */
 export function checkLock(orgAlias, dataDir) {
-  const lockPath = path.join(dataDir, `${orgAlias}.deploy.lock`);
+  const lockPath = path.join(dataDir, `${safeName(orgAlias)}.deploy.lock`);
   if (!fs.existsSync(lockPath)) return null;
 
   try {

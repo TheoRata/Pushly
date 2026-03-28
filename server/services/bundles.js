@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { safeName } from '../utils/sanitize.js';
 
 function bundlesDir(dataDir) {
   return path.join(dataDir, 'bundles');
@@ -28,7 +29,7 @@ export function listBundles(dataDir) {
  * Gets a single bundle by name.
  */
 export function getBundle(name, dataDir) {
-  const filePath = path.join(bundlesDir(dataDir), `${name}.json`);
+  const filePath = path.join(bundlesDir(dataDir), `${safeName(name)}.json`);
   if (!fs.existsSync(filePath)) return null;
 
   try {
@@ -46,7 +47,7 @@ export function saveBundle(name, components, dataDir) {
   fs.mkdirSync(dir, { recursive: true });
 
   const bundle = { name, components, createdAt: new Date().toISOString() };
-  fs.writeFileSync(path.join(dir, `${name}.json`), JSON.stringify(bundle, null, 2));
+  fs.writeFileSync(path.join(dir, `${safeName(name)}.json`), JSON.stringify(bundle, null, 2));
   return bundle;
 }
 
@@ -54,7 +55,7 @@ export function saveBundle(name, components, dataDir) {
  * Deletes a bundle by name.
  */
 export function deleteBundle(name, dataDir) {
-  const filePath = path.join(bundlesDir(dataDir), `${name}.json`);
+  const filePath = path.join(bundlesDir(dataDir), `${safeName(name)}.json`);
   if (fs.existsSync(filePath)) {
     fs.unlinkSync(filePath);
     return true;
