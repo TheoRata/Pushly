@@ -9,7 +9,9 @@ COPY client/ client/
 RUN cd client && npx vite build
 
 # Stage 2: Production image with SF CLI
-FROM node:20-alpine
+# node:20-slim (Debian) is required — SF CLI bundles glibc-native binaries
+# that silently fail on Alpine (musl libc)
+FROM node:20-slim
 RUN npm install -g @salesforce/cli
 WORKDIR /app
 COPY package.json package-lock.json ./
