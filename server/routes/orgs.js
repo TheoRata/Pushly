@@ -4,6 +4,9 @@ import { sfCommand } from '../services/sf-cli.js'
 
 const router = Router()
 
+// Track pending login flows so health polling can detect completion/failure
+const pendingLogins = new Map()
+
 /**
  * GET /api/orgs — list all authenticated orgs, enriched with health status
  */
@@ -87,10 +90,22 @@ router.post('/connect', async (req, res) => {
   }
 
   try {
+    // Track login state so health polling can report errors
+    pendingLogins.set(alias, { status: 'authenticating', startedAt: Date.now() })
+
     // Start the login flow — sf CLI opens a browser for OAuth
-    orgLoginWeb(alias, instanceUrl).catch((err) => {
-      console.error(`OAuth flow error for ${alias}:`, err.message || err)
-    })
+    orgLoginWeb(alias, instanceUrl)
+      .then(() => {
+        pendingLogins.set(alias, { status: 'connected' })
+        // Clean up after 30s
+        setTimeout(() => pendingLogins.delete(alias), 30000)
+      })
+      .catch((err) => {
+        console.error(`OAuth flow error for ${alias}:`, err.message || err)
+        pendingLogins.set(alias, { status: 'error', error: err.message || 'Login failed' })
+        // Clean up after 60s
+        setTimeout(() => pendingLogins.delete(alias), 60000)
+      })
 
     // Return immediately — OAuth happens in the browser
     res.json({ status: 'authenticating', alias })
@@ -106,9 +121,18 @@ router.post('/:alias/refresh', async (req, res) => {
   const { alias } = req.params
 
   try {
-    orgLoginWeb(alias).catch((err) => {
-      console.error(`OAuth refresh error for ${alias}:`, err.message || err)
-    })
+    pendingLogins.set(alias, { status: 'authenticating', startedAt: Date.now() })
+
+    orgLoginWeb(alias)
+      .then(() => {
+        pendingLogins.set(alias, { status: 'connected' })
+        setTimeout(() => pendingLogins.delete(alias), 30000)
+      })
+      .catch((err) => {
+        console.error(`OAuth refresh error for ${alias}:`, err.message || err)
+        pendingLogins.set(alias, { status: 'error', error: err.message || 'Refresh failed' })
+        setTimeout(() => pendingLogins.delete(alias), 60000)
+      })
 
     res.json({ status: 'authenticating', alias })
   } catch (err) {
@@ -136,14 +160,27 @@ router.delete('/:alias', async (req, res) => {
 router.get('/:alias/health', async (req, res) => {
   const { alias } = req.params
 
+  // Check if there's a pending login that errored
+  const pending = pendingLogins.get(alias)
+  if (pending && pending.status === 'error') {
+    pendingLogins.delete(alias)
+    return res.json({ alias, status: 'error', error: pending.error })
+  }
+
   try {
     const info = await orgDisplay(alias)
+    // Login succeeded — clean up pending state
+    if (pending) pendingLogins.delete(alias)
     res.json({
       alias,
       status: 'connected',
       info,
     })
   } catch (err) {
+    // If login is still in progress, report authenticating
+    if (pending && pending.status === 'authenticating') {
+      return res.json({ alias, status: 'authenticating' })
+    }
     res.json({
       alias,
       status: 'disconnected',

@@ -143,7 +143,35 @@ export async function orgDisplay(alias) {
 export async function orgLoginWeb(alias, instanceUrl) {
   const args = ['org', 'login', 'web', '--alias', alias]
   if (instanceUrl) args.push('--instance-url', instanceUrl)
-  return sfCommand(args)
+
+  // Do NOT use sfCommand here — it adds --json which can break
+  // the interactive OAuth browser flow. Run sf CLI directly and
+  // wait for the process to exit (OAuth callback completes).
+  return new Promise((resolve, reject) => {
+    const proc = spawn('sf', args, {
+      timeout: 300_000, // 5 minutes for user to complete login
+      env: { ...process.env },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+
+    let stdout = ''
+    let stderr = ''
+
+    proc.stdout.on('data', (chunk) => { stdout += chunk.toString() })
+    proc.stderr.on('data', (chunk) => { stderr += chunk.toString() })
+
+    proc.on('error', (err) => {
+      reject(new Error(`Login process error: ${err.message}`))
+    })
+
+    proc.on('close', (code) => {
+      if (code === 0) {
+        resolve({ success: true, alias })
+      } else {
+        reject(new Error(stderr || stdout || `sf org login web exited with code ${code}`))
+      }
+    })
+  })
 }
 
 export async function listMetadataTypes(orgAlias) {

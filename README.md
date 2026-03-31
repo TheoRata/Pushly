@@ -9,7 +9,7 @@ Pushly is a free, open-source web UI that wraps the Salesforce CLI. It gives adm
 - **Change Sets are slow** — Pushly loads metadata in seconds with fuzzy search and filtering
 - **The CLI is intimidating** — Pushly gives you point-and-click wizards instead
 - **Enterprise tools cost $200+/user/month** — Pushly is free
-- **No database needed** — Runs locally, stores data as JSON files on disk
+- **Self-host with Docker** — One command to run, zero infrastructure to manage
 
 ## Features
 
@@ -25,13 +25,21 @@ Pushly is a free, open-source web UI that wraps the Salesforce CLI. It gives adm
 
 ## Quick Start
 
-### Prerequisites
+### Option 1: Docker (Recommended)
 
+```bash
+git clone https://github.com/TheoRata/Pushly.git
+cd Pushly
+docker compose up
+```
+
+Open `http://localhost:3000` and connect your first org.
+
+### Option 2: Run Locally
+
+**Prerequisites:**
 - [Node.js](https://nodejs.org/) 18 or later
 - [Salesforce CLI](https://developer.salesforce.com/tools/salesforcecli) (`sf`) installed and on PATH
-- At least one authenticated Salesforce org (`sf org login web`)
-
-### Install & Run
 
 ```bash
 git clone https://github.com/TheoRata/Pushly.git
@@ -42,6 +50,14 @@ npm start
 ```
 
 Your browser opens to `http://localhost:3000`. That's it.
+
+### Migrating from v1 (JSON files)
+
+If you have existing data from the JSON file-based version, run the migration script:
+
+```bash
+node server/scripts/migrate-json-to-sqlite.js
+```
 
 ### Development
 
@@ -58,25 +74,21 @@ npm test       # Run all tests
 4. **Deploy with confidence** — Validate first (dry run), then deploy with real-time progress
 5. **Roll back if needed** — Every deploy creates a snapshot you can restore
 
-## Team Setup (Shared Drive)
-
-Pushly runs locally but stores history on a shared folder. Put the project on OneDrive, SharePoint, or any shared drive — your whole team sees the same deploy history.
-
-See [QUICKSTART.txt](QUICKSTART.txt) for detailed team setup instructions.
-
 ## Architecture
 
 ```
 pushly/
 ├── server/          # Node.js + Express backend (ES modules)
 │   ├── routes/      # REST API (orgs, metadata, retrieve, deploy, compare, history, bundles)
-│   ├── services/    # SF CLI wrapper, operations tracking, history, rollback, workspace
+│   ├── services/    # SF CLI wrapper, SQLite database, operations tracking, rollback, workspace
 │   └── utils/       # Error translation, prerequisites check
 ├── client/          # Vue 3 + Vite + Tailwind CSS v4 frontend
 │   └── src/
 │       ├── views/       # Dashboard, Orgs, Retrieve, Compare, Deploy, History
 │       ├── components/  # Glass design system + metadata browser
 │       └── composables/ # Shared state (useApi, useWebSocket, useMetadata, useCompare, etc.)
+├── Dockerfile       # Multi-stage build with SF CLI
+├── docker-compose.yml
 └── package.json
 ```
 
@@ -88,10 +100,17 @@ pushly/
 |-------|-----------|
 | Frontend | Vue 3, Vite 6, Tailwind CSS v4 |
 | Backend | Node.js, Express |
+| Database | SQLite (via better-sqlite3) |
 | Real-time | WebSocket (`ws`) |
 | Salesforce | SF CLI (`sf`) |
 | Testing | Vitest |
-| Data | JSON files (no database) |
+| Deployment | Docker, Docker Compose |
+
+## Self-Hosting
+
+Pushly is designed to be self-hosted. Run it with Docker or directly with Node.js. All data is stored in a single SQLite database file (`data/pushly.db`) — easy to back up and migrate.
+
+Set `PUSHLY_DATA_DIR` to customize where Pushly stores its database and rollback snapshots.
 
 ## License
 

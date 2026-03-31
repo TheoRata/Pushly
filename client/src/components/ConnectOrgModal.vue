@@ -68,7 +68,12 @@ async function startLogin() {
         clearTimers()
         step.value = 'success'
         emit('connected', alias.value.trim())
+      } else if (health && health.status === 'error') {
+        clearTimers()
+        step.value = 'error'
+        errorMessage.value = health.error || 'Login failed. Please try again.'
       }
+      // 'authenticating' or 'disconnected' → keep polling
     } catch {
       // Keep polling
     }
