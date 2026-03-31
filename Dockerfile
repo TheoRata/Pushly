@@ -13,7 +13,7 @@ FROM node:20-alpine
 RUN npm install -g @salesforce/cli
 WORKDIR /app
 COPY package.json package-lock.json ./
-COPY server/package.json server/
+COPY server/package.json server/package-lock.json server/
 RUN cd server && npm ci --omit=dev
 COPY server/ server/
 COPY pushly.sh ./
