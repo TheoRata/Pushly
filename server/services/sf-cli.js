@@ -1,4 +1,7 @@
 import { spawn } from 'child_process'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { translateError } from '../utils/error-translator.js'
 
 /**
@@ -172,6 +175,46 @@ export async function orgLoginWeb(alias, instanceUrl) {
       }
     })
   })
+}
+
+/**
+ * Authenticate an org using an SFDX auth URL (for headless/Docker environments).
+ * The auth URL format: force://<clientId>:<clientSecret>:<refreshToken>@<instanceUrl>
+ */
+export async function orgLoginSfdxUrl(alias, authUrl) {
+  // Write auth URL to a temp file (sf CLI reads it from a file)
+  const tmpFile = path.join(os.tmpdir(), `pushly-auth-${Date.now()}.txt`)
+  fs.writeFileSync(tmpFile, authUrl.trim(), 'utf-8')
+
+  try {
+    const result = await sfCommand([
+      'org', 'login', 'sfdx-url',
+      '--sfdx-url-file', tmpFile,
+      '--alias', alias,
+    ])
+    return { success: true, alias, ...result }
+  } finally {
+    // Always clean up the temp file
+    try { fs.unlinkSync(tmpFile) } catch {}
+  }
+}
+
+/**
+ * Detect if we're running in a headless environment (Docker, CI, etc.)
+ */
+let _headlessCache = null
+export function isHeadless() {
+  if (_headlessCache !== null) return _headlessCache
+  if (process.env.PUSHLY_HEADLESS === '1' || process.env.PUSHLY_HEADLESS === 'true') {
+    _headlessCache = true
+    return true
+  }
+  try {
+    _headlessCache = fs.existsSync('/.dockerenv')
+  } catch {
+    _headlessCache = false
+  }
+  return _headlessCache
 }
 
 export async function listMetadataTypes(orgAlias) {

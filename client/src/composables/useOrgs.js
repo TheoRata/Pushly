@@ -29,9 +29,17 @@ export function useOrgs() {
     orgs.value = orgs.value.filter((o) => o.alias !== alias)
   }
 
+  async function connectOrgAuthUrl(alias, authUrl) {
+    return api.post('/orgs/connect/auth-url', { alias, authUrl })
+  }
+
   async function checkHealth(alias) {
     return api.get(`/orgs/${encodeURIComponent(alias)}/health`)
   }
 
-  return { orgs, loading, refresh, connectOrg, removeOrg, checkHealth }
+  async function getEnv() {
+    return api.get('/orgs/env')
+  }
+
+  return { orgs, loading, refresh, connectOrg, connectOrgAuthUrl, removeOrg, checkHealth, getEnv }
 }

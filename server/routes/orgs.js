@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { listOrgs, orgDisplay, orgLoginWeb } from '../services/sf-cli.js'
+import { listOrgs, orgDisplay, orgLoginWeb, orgLoginSfdxUrl, isHeadless } from '../services/sf-cli.js'
 import { sfCommand } from '../services/sf-cli.js'
 
 const router = Router()
@@ -62,6 +62,37 @@ router.get('/', async (_req, res) => {
     res.json({ orgs: enriched })
   } catch (err) {
     res.status(500).json({ error: err.message || 'Failed to list orgs', details: err })
+  }
+})
+
+/**
+ * GET /api/orgs/env — returns environment info (headless detection for Docker)
+ */
+router.get('/env', (_req, res) => {
+  res.json({ headless: isHeadless() })
+})
+
+/**
+ * POST /api/orgs/connect/auth-url — authenticate using an SFDX auth URL (headless/Docker)
+ * Body: { alias, authUrl }
+ */
+router.post('/connect/auth-url', async (req, res) => {
+  const { alias, authUrl } = req.body
+
+  if (!alias || !authUrl) {
+    return res.status(400).json({ error: 'alias and authUrl are required' })
+  }
+
+  // Basic validation: auth URL should start with force://
+  if (!authUrl.trim().startsWith('force://')) {
+    return res.status(400).json({ error: 'Invalid auth URL. It should start with force://' })
+  }
+
+  try {
+    await orgLoginSfdxUrl(alias, authUrl)
+    res.json({ status: 'connected', alias })
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Failed to authenticate with auth URL' })
   }
 })
 
