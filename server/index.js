@@ -23,6 +23,7 @@ import deployRouter from './routes/deploy.js'
 import historyRouter from './routes/history.js'
 import bundlesRouter from './routes/bundles.js'
 import compareRouter from './routes/compare.js'
+import oauthRouter from './routes/oauth.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -75,6 +76,7 @@ app.use('/api/deploy', deployRouter)
 app.use('/api/history', historyRouter)
 app.use('/api/bundles', bundlesRouter)
 app.use('/api/compare', compareRouter)
+app.use('/api/oauth', oauthRouter)
 
 // Static files (production build)
 const clientDist = join(__dirname, '..', 'client', 'dist')

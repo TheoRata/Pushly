@@ -118,7 +118,9 @@ async function handleRefreshOpen() {
   const category = categories.value.find((c) => c.name === activeCategory.value)
   if (!category) return
   const typeNames = category.types.map((t) => t.xmlName || t)
+  refreshing.value = true
   try { await refreshTypes(typeNames) } catch {}
+  refreshing.value = false
 }
 
 watch(
@@ -152,7 +154,7 @@ watch(
         :loading="loading"
         :refreshing="refreshing"
         :active-category="activeCategory"
-        :get-fields-for-object="getFieldsForObject"
+        :org-alias="orgAlias"
         @search="search"
         @toggle-component="toggleComponent"
         @toggle-recent="toggleRecentlyModified"

@@ -89,7 +89,9 @@ function cancelRemove() {
           To get started, connect your first Salesforce org.<br />
           You'll log in through Salesforce — we never see your password.
         </p>
-        <GlassHoverButton text="Connect a Salesforce Org" @click="openConnect" />
+        <div class="flex justify-center">
+          <GlassHoverButton text="Connect a Salesforce Org" @click="openConnect" />
+        </div>
       </GlassCard>
     </div>
 

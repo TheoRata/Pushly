@@ -2,35 +2,24 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useOrgs } from '../composables/useOrgs'
 import GlassModal from './glass/GlassModal.vue'
-import GlassToggle from './glass/GlassToggle.vue'
 import GlassInput from './glass/GlassInput.vue'
 import GlassButton from './glass/GlassButton.vue'
 
 const emit = defineEmits(['connected', 'close'])
 
-const { connectOrg, connectOrgAuthUrl, checkHealth, getEnv } = useOrgs()
+const { connectOrg, checkHealth, getOAuthStatus, getOAuthUrl } = useOrgs()
 
 const orgType = ref('sandbox')
 const alias = ref('')
 const customDomain = ref('')
-const useCustomDomain = ref(false)
-const step = ref('form') // form | waiting | device | success | error
+const showAdvanced = ref(false)
+const oauthConfigured = ref(false)
+const step = ref('form') // form | waiting | success | error
 const errorMessage = ref('')
-const authUrl = ref('')
-const isHeadless = ref(false)
-const connectMode = ref('browser') // browser | authurl
 let pollTimer = null
 let timeoutTimer = null
-
-const orgTypeOptions = [
-  { label: 'Sandbox', value: 'sandbox' },
-  { label: 'Production', value: 'production' },
-]
-
-const connectModeOptions = [
-  { label: 'Browser Login', value: 'browser' },
-  { label: 'Auth URL', value: 'authurl' },
-]
+let popupRef = null
+let popupPollTimer = null
 
 const domainPlaceholder = computed(() =>
   orgType.value === 'sandbox'
@@ -38,29 +27,45 @@ const domainPlaceholder = computed(() =>
     : 'mycompany.my.salesforce.com'
 )
 
-// Detect headless environment on mount
 onMounted(async () => {
   try {
-    const env = await getEnv()
-    isHeadless.value = env.headless
-    if (env.headless) {
-      connectMode.value = 'authurl'
-    }
+    const status = await getOAuthStatus()
+    oauthConfigured.value = status.configured === true
   } catch {
-    // Ignore — default to browser mode
+    oauthConfigured.value = false
   }
 })
 
 function close() {
   clearTimers()
+  window.removeEventListener('message', onMessage)
   emit('close')
 }
 
 function clearTimers() {
   clearInterval(pollTimer)
   clearTimeout(timeoutTimer)
+  clearInterval(popupPollTimer)
   pollTimer = null
   timeoutTimer = null
+  popupPollTimer = null
+}
+
+function onMessage(event) {
+  if (event.data?.type === 'oauth-success') {
+    clearTimers()
+    window.removeEventListener('message', onMessage)
+    if (popupRef && !popupRef.closed) popupRef.close()
+    step.value = 'success'
+    emit('connected', event.data.alias || alias.value.trim())
+  }
+  if (event.data?.type === 'oauth-error') {
+    clearTimers()
+    window.removeEventListener('message', onMessage)
+    if (popupRef && !popupRef.closed) popupRef.close()
+    step.value = 'error'
+    errorMessage.value = event.data.error || 'OAuth login failed'
+  }
 }
 
 async function startLogin() {
@@ -69,11 +74,66 @@ async function startLogin() {
   step.value = 'waiting'
   errorMessage.value = ''
 
+  if (oauthConfigured.value) {
+    await startOAuthLogin()
+  } else {
+    await startFallbackLogin()
+  }
+}
+
+async function startOAuthLogin() {
+  try {
+    const result = await getOAuthUrl(
+      alias.value.trim(),
+      orgType.value,
+      customDomain.value.trim() || undefined
+    )
+
+    if (!result.url) {
+      step.value = 'error'
+      errorMessage.value = 'No OAuth URL returned from server'
+      return
+    }
+
+    // Open centered popup
+    const width = 600, height = 700
+    const left = window.screenX + (window.outerWidth - width) / 2
+    const top = window.screenY + (window.outerHeight - height) / 2
+    popupRef = window.open(result.url, 'pushly-oauth', `width=${width},height=${height},left=${left},top=${top}`)
+
+    if (!popupRef || popupRef.closed) {
+      step.value = 'error'
+      errorMessage.value = 'Popup was blocked by the browser. Please allow popups for this site.'
+      return
+    }
+
+    // Listen for postMessage from the popup
+    window.addEventListener('message', onMessage)
+
+    // Poll to detect if user closed the popup without completing
+    popupPollTimer = setInterval(() => {
+      if (popupRef.closed) {
+        clearInterval(popupPollTimer)
+        popupPollTimer = null
+        if (step.value === 'waiting') {
+          window.removeEventListener('message', onMessage)
+          step.value = 'error'
+          errorMessage.value = 'Login window was closed before completing'
+        }
+      }
+    }, 1000)
+  } catch (err) {
+    step.value = 'error'
+    errorMessage.value = err.message || 'Failed to start OAuth login'
+  }
+}
+
+async function startFallbackLogin() {
   try {
     await connectOrg(
       alias.value.trim(),
       orgType.value,
-      useCustomDomain.value ? customDomain.value.trim() : ''
+      customDomain.value.trim() || ''
     )
   } catch (err) {
     step.value = 'error'
@@ -81,7 +141,6 @@ async function startLogin() {
     return
   }
 
-  // Poll for health every 2 seconds
   pollTimer = setInterval(async () => {
     try {
       const health = await checkHealth(alias.value.trim())
@@ -94,12 +153,9 @@ async function startLogin() {
         step.value = 'error'
         errorMessage.value = health.error || 'Login failed. Please try again.'
       }
-    } catch {
-      // Keep polling
-    }
+    } catch {}
   }, 2000)
 
-  // Timeout after 120 seconds
   timeoutTimer = setTimeout(() => {
     clearInterval(pollTimer)
     step.value = 'error'
@@ -107,161 +163,119 @@ async function startLogin() {
   }, 120000)
 }
 
-async function startAuthUrlLogin() {
-  if (!alias.value.trim() || !authUrl.value.trim()) return
-
-  step.value = 'waiting'
-  errorMessage.value = ''
-
-  try {
-    await connectOrgAuthUrl(alias.value.trim(), authUrl.value.trim())
-    step.value = 'success'
-    emit('connected', alias.value.trim())
-  } catch (err) {
-    step.value = 'error'
-    errorMessage.value = err.message || 'Failed to authenticate with auth URL'
-  }
-}
-
-onUnmounted(clearTimers)
+onUnmounted(() => {
+  clearTimers()
+  window.removeEventListener('message', onMessage)
+})
 </script>
 
 <template>
-  <GlassModal :show="true" title="Connect Salesforce Org" max-width="520px" @close="close">
-    <!-- Form step -->
+  <GlassModal :show="true" title="Connect Salesforce Org" max-width="480px" @close="close">
+
+    <!-- ===== FORM STEP ===== -->
     <template v-if="step === 'form'">
-      <!-- Connection mode toggle (show both options, default based on env) -->
+
+      <!-- Org type cards -->
       <div class="mb-5">
-        <label class="block text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider mb-2">Connection Method</label>
-        <GlassToggle :options="connectModeOptions" :model-value="connectMode" @update:model-value="connectMode = $event" />
+        <label class="block text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider mb-2">What type of org?</label>
+        <div class="grid grid-cols-2 gap-3">
+          <button
+            class="flex flex-col items-center gap-2 p-4 rounded-[var(--radius-lg)] border-2 transition-all duration-200"
+            :class="orgType === 'sandbox'
+              ? 'border-[var(--color-primary)] bg-[var(--color-primary-bg)]'
+              : 'border-[var(--glass-border)] hover:border-[var(--glass-border-hover)]'"
+            @click="orgType = 'sandbox'"
+          >
+            <svg class="w-6 h-6" :class="orgType === 'sandbox' ? 'text-[var(--color-primary)]' : 'text-[var(--text-muted)]'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5" />
+            </svg>
+            <span class="text-sm font-medium" :class="orgType === 'sandbox' ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'">Sandbox</span>
+            <span class="text-[10px] text-[var(--text-muted)]">Dev, QA, UAT</span>
+          </button>
+
+          <button
+            class="flex flex-col items-center gap-2 p-4 rounded-[var(--radius-lg)] border-2 transition-all duration-200"
+            :class="orgType === 'production'
+              ? 'border-[var(--color-warning)] bg-[var(--color-warning-bg)]'
+              : 'border-[var(--glass-border)] hover:border-[var(--glass-border-hover)]'"
+            @click="orgType = 'production'"
+          >
+            <svg class="w-6 h-6" :class="orgType === 'production' ? 'text-[var(--color-warning)]' : 'text-[var(--text-muted)]'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" />
+            </svg>
+            <span class="text-sm font-medium" :class="orgType === 'production' ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'">Production</span>
+            <span class="text-[10px] text-[var(--text-muted)]">Live org</span>
+          </button>
+        </div>
       </div>
 
-      <!-- Browser login mode -->
-      <template v-if="connectMode === 'browser'">
-        <!-- Org type selector -->
-        <div class="mb-5">
-          <label class="block text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider mb-2">Org Type</label>
-          <GlassToggle :options="orgTypeOptions" :model-value="orgType" @update:model-value="orgType = $event" />
-        </div>
+      <!-- Friendly name -->
+      <div class="mb-4">
+        <GlassInput
+          :model-value="alias"
+          label="Give it a name"
+          placeholder="e.g. Dev Sandbox, Production"
+          @update:model-value="alias = $event"
+        />
+        <p class="mt-1 text-xs text-[var(--text-muted)]">A short name to identify this org in Pushly</p>
+      </div>
 
-        <!-- Alias input -->
-        <div class="mb-4">
-          <GlassInput
-            :model-value="alias"
-            label="Friendly Name"
-            placeholder="e.g. my-dev-sandbox"
-            @update:model-value="alias = $event"
-          />
-        </div>
+      <!-- Advanced section -->
+      <div class="mb-4">
+        <button
+          class="text-xs text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors flex items-center gap-1"
+          @click="showAdvanced = !showAdvanced"
+        >
+          <svg
+            class="w-3 h-3 transition-transform duration-200"
+            :class="showAdvanced && 'rotate-90'"
+            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+          </svg>
+          Advanced options
+        </button>
 
-        <!-- Custom domain toggle -->
-        <div class="mb-4">
-          <label class="flex items-center gap-2 cursor-pointer group">
-            <input
-              v-model="useCustomDomain"
-              type="checkbox"
-              class="w-4 h-4 rounded border-white/20 bg-[var(--glass-bg)] text-[var(--color-primary)] focus:ring-[var(--color-primary)]/50 cursor-pointer accent-[var(--color-primary)]"
-            />
-            <span class="text-sm text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors">
-              Use custom domain (My Domain)
-            </span>
-          </label>
-        </div>
-
-        <!-- Custom domain input -->
-        <div v-if="useCustomDomain" class="mb-4">
+        <div v-if="showAdvanced" class="mt-3 space-y-3">
+          <!-- Custom domain -->
           <GlassInput
             :model-value="customDomain"
-            label="Custom Domain"
+            label="Custom Domain (My Domain)"
             :placeholder="domainPlaceholder"
             @update:model-value="customDomain = $event"
           />
-          <p class="mt-1.5 text-xs text-[var(--text-muted)]">
-            Your Salesforce My Domain URL. Found in Setup > My Domain.
+          <p class="text-xs text-[var(--text-muted)]">
+            Only needed if your org uses a custom My Domain URL. Found in Setup &rarr; My Domain.
           </p>
         </div>
+      </div>
 
-        <!-- Headless warning -->
-        <div
-          v-if="isHeadless"
-          class="mb-4 rounded-lg p-3 border"
-          style="background: var(--color-warning-bg); border-color: var(--color-warning-border);"
-        >
-          <p class="text-xs text-[var(--color-warning)] font-medium">
-            Browser login may not work in this environment (Docker/headless). Use "Auth URL" instead.
-          </p>
-        </div>
-
-        <p class="text-xs text-[var(--text-muted)] leading-relaxed">
-          You'll be redirected to Salesforce to log in. This app will be granted permission to read and deploy metadata on your behalf.
-        </p>
-      </template>
-
-      <!-- Auth URL mode -->
-      <template v-else>
-        <!-- Alias input -->
-        <div class="mb-4">
-          <GlassInput
-            :model-value="alias"
-            label="Friendly Name"
-            placeholder="e.g. my-dev-sandbox"
-            @update:model-value="alias = $event"
-          />
-        </div>
-
-        <!-- Instructions -->
-        <div
-          class="mb-4 rounded-lg p-3 border"
-          style="background: var(--glass-bg); border-color: var(--glass-border);"
-        >
-          <p class="text-xs font-medium text-[var(--text-primary)] mb-2">On your local machine, run:</p>
-          <div
-            class="rounded px-3 py-2 text-xs font-mono text-[var(--text-secondary)] mb-2 select-all"
-            style="background: rgba(0,0,0,0.3);"
-          >
-            sf org login web -a {{ alias.trim() || 'my-org' }}
-          </div>
-          <p class="text-xs text-[var(--text-muted)] mb-2">Then get the auth URL:</p>
-          <div
-            class="rounded px-3 py-2 text-xs font-mono text-[var(--text-secondary)] select-all"
-            style="background: rgba(0,0,0,0.3);"
-          >
-            sf org display --verbose --json -o {{ alias.trim() || 'my-org' }}
-          </div>
-          <p class="text-xs text-[var(--text-muted)] mt-2">
-            Copy the <code class="text-[var(--color-primary)]">sfdxAuthUrl</code> value from the JSON output.
-          </p>
-        </div>
-
-        <!-- Auth URL input -->
-        <div class="mb-4">
-          <label class="block text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider mb-2">Auth URL</label>
-          <textarea
-            v-model="authUrl"
-            placeholder="force://PlatformCLI::refreshToken@instance.salesforce.com"
-            class="w-full px-3 py-2 text-sm rounded-lg font-mono text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none resize-none"
-            style="background: var(--glass-bg); border: 1px solid var(--glass-border); min-height: 60px;"
-            rows="2"
-          />
-        </div>
-      </template>
+      <p class="text-xs text-[var(--text-muted)] leading-relaxed">
+        {{ oauthConfigured
+          ? 'A popup window will open for you to log in to Salesforce. We never see your password.'
+          : 'A browser window will open for you to log in to Salesforce. We never see your password.'
+        }}
+      </p>
     </template>
 
-    <!-- Waiting step -->
+    <!-- ===== WAITING ===== -->
     <template v-if="step === 'waiting'">
       <div class="flex flex-col items-center py-6">
         <svg class="w-10 h-10 text-[var(--color-primary)] animate-spin mb-4" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" />
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
         </svg>
-        <p class="text-[var(--text-primary)] font-medium text-sm">
-          {{ connectMode === 'authurl' ? 'Authenticating...' : 'Waiting for Salesforce login...' }}
+        <p class="text-[var(--text-primary)] font-medium text-sm">Waiting for Salesforce login...</p>
+        <p class="text-[var(--text-muted)] text-xs mt-2">
+          {{ oauthConfigured
+            ? 'Complete the login in the popup window'
+            : 'Complete the login in your browser'
+          }}
         </p>
-        <p v-if="connectMode === 'browser'" class="text-[var(--text-muted)] text-xs mt-2">Complete the login in your browser</p>
       </div>
     </template>
 
-    <!-- Success step -->
+    <!-- ===== SUCCESS ===== -->
     <template v-if="step === 'success'">
       <div class="flex flex-col items-center py-6">
         <div class="flex items-center justify-center w-12 h-12 rounded-full bg-[var(--color-success-bg)] border border-[var(--color-success-border)] mb-4">
@@ -273,7 +287,7 @@ onUnmounted(clearTimers)
       </div>
     </template>
 
-    <!-- Error step -->
+    <!-- ===== ERROR ===== -->
     <template v-if="step === 'error'">
       <div class="flex flex-col items-center py-6">
         <div class="flex items-center justify-center w-12 h-12 rounded-full bg-[var(--color-error-bg)] border border-[var(--color-error-border)] mb-4">
@@ -285,30 +299,20 @@ onUnmounted(clearTimers)
       </div>
     </template>
 
-    <!-- Footer -->
+    <!-- ===== FOOTER ===== -->
     <template #footer>
       <GlassButton
-        v-if="step === 'form' && connectMode === 'browser'"
+        v-if="step === 'form'"
         variant="primary"
         size="md"
-        :disabled="!alias.trim() || (useCustomDomain && !customDomain.trim())"
+        :disabled="!alias.trim()"
         class="w-full"
         @click="startLogin"
       >
         Log in to Salesforce
       </GlassButton>
       <GlassButton
-        v-else-if="step === 'form' && connectMode === 'authurl'"
-        variant="primary"
-        size="md"
-        :disabled="!alias.trim() || !authUrl.trim()"
-        class="w-full"
-        @click="startAuthUrlLogin"
-      >
-        Connect with Auth URL
-      </GlassButton>
-      <GlassButton
-        v-else-if="step === 'success'"
+        v-if="step === 'success'"
         variant="primary"
         size="md"
         @click="close"
@@ -316,7 +320,7 @@ onUnmounted(clearTimers)
         Done
       </GlassButton>
       <GlassButton
-        v-else-if="step === 'error'"
+        v-if="step === 'error'"
         variant="secondary"
         size="md"
         @click="step = 'form'"

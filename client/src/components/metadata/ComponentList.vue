@@ -4,6 +4,9 @@ import { RecycleScroller } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 import ComponentRow from './ComponentRow.vue'
 import GlassBadge from '../glass/GlassBadge.vue'
+import { useApi } from '../../composables/useApi'
+
+const api = useApi()
 
 const props = defineProps({
   components: { type: Array, required: true },
@@ -13,7 +16,7 @@ const props = defineProps({
   loading: { type: Boolean, default: false },
   refreshing: { type: Boolean, default: false },
   activeCategory: { type: String, default: null },
-  getFieldsForObject: { type: Function, default: () => [] },
+  orgAlias: { type: String, default: '' },
 })
 
 const emit = defineEmits(['search', 'toggle-component', 'toggle-recent', 'refresh-all', 'refresh-open'])
@@ -23,11 +26,8 @@ const searchFocused = ref(false)
 
 // Drill-down state
 const drilledObject = ref(null)
-
-const objectFields = computed(() => {
-  if (!drilledObject.value) return []
-  return props.getFieldsForObject(drilledObject.value.fullName)
-})
+const objectFields = ref([])
+const fieldsLoading = ref(false)
 
 const selectedFieldCount = computed(() => {
   if (!drilledObject.value) return 0
@@ -51,8 +51,31 @@ function handleToggle(component) {
   emit('toggle-component', component)
 }
 
-function handleDrill(component) {
+async function handleDrill(component) {
   drilledObject.value = component
+  fieldsLoading.value = true
+  objectFields.value = []
+
+  try {
+    const { results } = await api.post(
+      `/metadata/${encodeURIComponent(props.orgAlias)}/batch-components`,
+      { types: ['CustomField'] }
+    )
+    const allFields = results?.CustomField || []
+    const prefix = component.fullName + '.'
+    objectFields.value = allFields
+      .filter(f => (f.fullName || '').startsWith(prefix))
+      .map(f => ({
+        fullName: f.fullName,
+        type: 'CustomField',
+        lastModified: f.lastModifiedDate || f.createdDate || null,
+        lastModifiedBy: f.lastModifiedByName || null,
+      }))
+      .sort((a, b) => a.fullName.localeCompare(b.fullName))
+  } catch (err) {
+    console.error('Failed to load fields:', err)
+  }
+  fieldsLoading.value = false
 }
 
 function closeDrill() {
@@ -168,11 +191,22 @@ function handleRefreshOpen() {
 
       <!-- Fields list -->
       <div class="flex-1 overflow-y-auto">
-        <div v-if="objectFields.length === 0" class="flex flex-col items-center justify-center py-12 gap-2">
+        <!-- Loading spinner -->
+        <div v-if="fieldsLoading" class="flex flex-col items-center justify-center py-12 gap-3">
+          <svg class="w-5 h-5 animate-spin text-[var(--color-primary)]" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+          </svg>
+          <span class="text-sm text-[var(--text-muted)]">Loading fields...</span>
+        </div>
+
+        <!-- No fields found -->
+        <div v-else-if="objectFields.length === 0" class="flex flex-col items-center justify-center py-12 gap-2">
           <svg class="w-8 h-8 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
             <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
           </svg>
           <span class="text-sm text-[var(--text-muted)]">No custom fields found for this object</span>
+          <span class="text-xs text-[var(--text-muted)]">You can still select the entire object above to retrieve all its metadata</span>
         </div>
         <div
           v-for="field in objectFields"

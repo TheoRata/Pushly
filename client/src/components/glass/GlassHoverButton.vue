@@ -45,8 +45,8 @@ function handleClick() {
     <div class="flex items-center gap-2">
       <!-- Expanding dot -->
       <div
-        class="h-2 w-2 rounded-full transition-all duration-500 group-hover:scale-[40]"
-        :class="!isIdle ? 'scale-[40]' : ''"
+        class="h-2 w-2 rounded-full transition-all duration-500 group-hover:scale-[100]"
+        :class="!isIdle ? 'scale-[100]' : ''"
         style="background: var(--color-primary);"
       />
 

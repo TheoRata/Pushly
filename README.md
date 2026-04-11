@@ -68,7 +68,7 @@ npm test       # Run all tests
 
 ## How It Works
 
-1. **Connect orgs** — Pushly detects orgs already authenticated via Salesforce CLI or the VS Code Salesforce Extension
+1. **Connect orgs** — Log in via Salesforce OAuth (Connected App), or Pushly detects orgs already authenticated via the SF CLI or VS Code Salesforce Extension
 2. **Retrieve metadata** — Browse and select components from a searchable tree with fuzzy matching
 3. **Compare orgs** — Pick two orgs and see a side-by-side diff of their metadata inventories
 4. **Deploy with confidence** — Validate first (dry run), then deploy with real-time progress
@@ -79,7 +79,7 @@ npm test       # Run all tests
 ```
 pushly/
 ├── server/          # Node.js + Express backend (ES modules)
-│   ├── routes/      # REST API (orgs, metadata, retrieve, deploy, compare, history, bundles)
+│   ├── routes/      # REST API (orgs, metadata, retrieve, deploy, compare, history, bundles, oauth)
 │   ├── services/    # SF CLI wrapper, SQLite database, operations tracking, rollback, workspace
 │   └── utils/       # Error translation, prerequisites check
 ├── client/          # Vue 3 + Vite + Tailwind CSS v4 frontend
@@ -105,6 +105,23 @@ pushly/
 | Salesforce | SF CLI (`sf`) |
 | Testing | Vitest |
 | Deployment | Docker, Docker Compose |
+
+## OAuth Setup (Optional)
+
+To let users log in directly from Pushly instead of using the SF CLI:
+
+1. In Salesforce Setup, go to **App Manager** → **New Connected App**
+2. Enable OAuth, add `api` and `refresh_token` scopes
+3. Set the callback URL to `http://localhost:3000/api/oauth/callback`
+4. Copy `.env.example` to `.env` and fill in:
+
+```env
+SF_CLIENT_ID=your_consumer_key
+SF_CLIENT_SECRET=your_consumer_secret
+SF_CALLBACK_URL=http://localhost:3000/api/oauth/callback
+```
+
+Without these, users can still connect orgs that are already authenticated via the SF CLI or VS Code Salesforce Extension.
 
 ## Self-Hosting
 

@@ -41,5 +41,15 @@ export function useOrgs() {
     return api.get('/orgs/env')
   }
 
-  return { orgs, loading, refresh, connectOrg, connectOrgAuthUrl, removeOrg, checkHealth, getEnv }
+  async function getOAuthStatus() {
+    return api.get('/oauth/status')
+  }
+
+  async function getOAuthUrl(alias, type, customDomain) {
+    const params = new URLSearchParams({ type, alias })
+    if (customDomain) params.set('customDomain', customDomain)
+    return api.get(`/oauth/authorize?${params}`)
+  }
+
+  return { orgs, loading, refresh, connectOrg, connectOrgAuthUrl, removeOrg, checkHealth, getEnv, getOAuthStatus, getOAuthUrl }
 }

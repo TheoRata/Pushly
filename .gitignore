@@ -10,8 +10,12 @@ data/bundles/
 workspaces/
 .superpowers/
 .sfdx/
+.claude/
+.obsidian/
 data/cache/
 docs/
+output/
+raw/
 
 # SQLite database
 data/pushly.db
