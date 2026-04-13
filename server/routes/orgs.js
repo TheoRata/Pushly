@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { listOrgs, orgDisplay, orgLoginWeb, orgLoginSfdxUrl, isHeadless } from '../services/sf-cli.js'
+import { listOrgs, orgDisplay, orgLoginWeb, orgLoginWebHeadless, orgLoginSfdxUrl, isHeadless } from '../services/sf-cli.js'
 import { sfCommand } from '../services/sf-cli.js'
 
 const router = Router()
@@ -110,7 +110,6 @@ router.post('/connect', async (req, res) => {
   // Custom domain takes priority, then fall back to standard login URLs
   let instanceUrl
   if (customDomain && customDomain.trim()) {
-    // Normalize: add https:// if missing, strip trailing slashes
     let domain = customDomain.trim()
     if (!domain.startsWith('http')) domain = `https://${domain}`
     instanceUrl = domain.replace(/\/+$/, '')
@@ -121,26 +120,46 @@ router.post('/connect', async (req, res) => {
   }
 
   try {
-    // Track login state so health polling can report errors
     pendingLogins.set(alias, { status: 'authenticating', startedAt: Date.now() })
 
-    // Start the login flow — sf CLI opens a browser for OAuth
+    if (isHeadless()) {
+      // Docker/CI: capture the login URL from sf CLI stdout and send it to the
+      // frontend so it can open a popup in the user's host browser.
+      const { urlPromise, completionPromise } = orgLoginWebHeadless(alias, instanceUrl)
+
+      // Wire completion to pendingLogins (fire-and-forget)
+      completionPromise
+        .then(() => {
+          pendingLogins.set(alias, { status: 'connected' })
+          setTimeout(() => pendingLogins.delete(alias), 30000)
+        })
+        .catch((err) => {
+          console.error(`Headless login error for ${alias}:`, err.message || err)
+          pendingLogins.set(alias, { status: 'error', error: err.message || 'Login failed' })
+          setTimeout(() => pendingLogins.delete(alias), 60000)
+        })
+
+      // Await URL capture (fast — typically <1s)
+      const loginUrl = await urlPromise
+      return res.json({ status: 'authenticating', alias, loginUrl })
+    }
+
+    // Non-headless: existing flow — sf CLI opens a browser locally
     orgLoginWeb(alias, instanceUrl)
       .then(() => {
         pendingLogins.set(alias, { status: 'connected' })
-        // Clean up after 30s
         setTimeout(() => pendingLogins.delete(alias), 30000)
       })
       .catch((err) => {
         console.error(`OAuth flow error for ${alias}:`, err.message || err)
         pendingLogins.set(alias, { status: 'error', error: err.message || 'Login failed' })
-        // Clean up after 60s
         setTimeout(() => pendingLogins.delete(alias), 60000)
       })
 
-    // Return immediately — OAuth happens in the browser
     res.json({ status: 'authenticating', alias })
   } catch (err) {
+    pendingLogins.set(alias, { status: 'error', error: err.message || 'Login failed' })
+    setTimeout(() => pendingLogins.delete(alias), 60000)
     res.status(500).json({ error: err.message || 'Failed to start org connection' })
   }
 })
