@@ -3,6 +3,9 @@ services:
     build: .
     ports:
       - "3000:3000"
+      # Port 1717 is used by the Salesforce CLI OAuth callback when logging
+      # in from the browser. Required for the in-app Salesforce login flow.
+      - "1717:1717"
     volumes:
       - pushly-data:/app/data
       - pushly-workspaces:/app/workspaces

@@ -35,6 +35,8 @@ docker compose up
 
 Open `http://localhost:3000` and connect your first org.
 
+> **Port 1717** is mapped in addition to 3000. It's used by the Salesforce CLI's OAuth callback server when you log in to an org from the browser. Both ports must be free on the host.
+
 ### Option 2: Run Locally
 
 **Prerequisites:**
