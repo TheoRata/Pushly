@@ -177,6 +177,23 @@ export async function orgLoginWeb(alias, instanceUrl) {
   })
 }
 
+// Track active headless login processes. Only one can run at a time because
+// the SF CLI callback server always binds to port 1717 inside the container.
+// Before starting a new login, we must kill any previous attempt that's still
+// waiting for a callback.
+const activeLoginProcesses = new Set()
+
+/**
+ * Kill all active sf org login web processes. Called before starting a new
+ * headless login to free up port 1717 inside the container.
+ */
+export function killActiveLoginProcesses() {
+  for (const proc of activeLoginProcesses) {
+    try { proc.kill('SIGTERM') } catch {}
+  }
+  activeLoginProcesses.clear()
+}
+
 /**
  * Headless variant of orgLoginWeb for Docker/CI environments.
  *
@@ -185,6 +202,9 @@ export async function orgLoginWeb(alias, instanceUrl) {
  * `--browser firefox` and rely on a fake firefox wrapper installed in the
  * Docker image that writes the URL to $PUSHLY_URL_FILE instead of opening
  * a browser. We poll that file to get the URL and return it to the frontend.
+ *
+ * The caller (POST /connect) is expected to call killActiveLoginProcesses()
+ * before invoking this function to free port 1717 from any previous attempt.
  *
  * Returns:
  *   - urlPromise: resolves with the captured login URL (10s timeout)
@@ -206,6 +226,10 @@ export function orgLoginWebHeadless(alias, instanceUrl) {
     env: { ...process.env, PUSHLY_URL_FILE: urlFile },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
+
+  // Track this process so a subsequent login can kill it if the user abandons
+  activeLoginProcesses.add(proc)
+  proc.once('close', () => activeLoginProcesses.delete(proc))
 
   let stdout = ''
   let stderr = ''

@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { listOrgs, orgDisplay, orgLoginWeb, orgLoginWebHeadless, orgLoginSfdxUrl, isHeadless, sfCommand } from '../services/sf-cli.js'
+import { listOrgs, orgDisplay, orgLoginWeb, orgLoginWebHeadless, killActiveLoginProcesses, orgLoginSfdxUrl, isHeadless, sfCommand } from '../services/sf-cli.js'
 
 const router = Router()
 
@@ -122,6 +122,10 @@ router.post('/connect', async (req, res) => {
     pendingLogins.set(alias, { status: 'authenticating', startedAt: Date.now() })
 
     if (isHeadless()) {
+      // Kill any previous sf login process that's still waiting for a callback —
+      // otherwise our new process will fail with EADDRINUSE on port 1717.
+      killActiveLoginProcesses()
+
       // Docker/CI: capture the login URL from sf CLI stdout and send it to the
       // frontend so it can open a popup in the user's host browser.
       const { urlPromise, completionPromise, process: loginProc } = orgLoginWebHeadless(alias, instanceUrl)
