@@ -27,5 +27,8 @@ RUN mkdir -p /app/data
 ENV NODE_ENV=production
 ENV PUSHLY_DATA_DIR=/app/data
 EXPOSE 3000
+# Port 1717 is used by the Salesforce CLI's OAuth callback server when logging
+# in from the Pushly web UI. Must be mapped on the host for browser-based login.
+EXPOSE 1717
 
 CMD ["node", "server/index.js"]
