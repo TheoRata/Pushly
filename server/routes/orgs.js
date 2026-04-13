@@ -1,6 +1,5 @@
 import { Router } from 'express'
-import { listOrgs, orgDisplay, orgLoginWeb, orgLoginWebHeadless, orgLoginSfdxUrl, isHeadless } from '../services/sf-cli.js'
-import { sfCommand } from '../services/sf-cli.js'
+import { listOrgs, orgDisplay, orgLoginWeb, orgLoginWebHeadless, orgLoginSfdxUrl, isHeadless, sfCommand } from '../services/sf-cli.js'
 
 const router = Router()
 
@@ -125,7 +124,7 @@ router.post('/connect', async (req, res) => {
     if (isHeadless()) {
       // Docker/CI: capture the login URL from sf CLI stdout and send it to the
       // frontend so it can open a popup in the user's host browser.
-      const { urlPromise, completionPromise } = orgLoginWebHeadless(alias, instanceUrl)
+      const { urlPromise, completionPromise, process: loginProc } = orgLoginWebHeadless(alias, instanceUrl)
 
       // Wire completion to pendingLogins (fire-and-forget)
       completionPromise
@@ -139,9 +138,16 @@ router.post('/connect', async (req, res) => {
           setTimeout(() => pendingLogins.delete(alias), 60000)
         })
 
-      // Await URL capture (fast — typically <1s)
-      const loginUrl = await urlPromise
-      return res.json({ status: 'authenticating', alias, loginUrl })
+      // Await URL capture (fast — typically <1s).
+      // If it times out or errors, kill the spawned sf process before re-throwing
+      // so it doesn't run orphaned for up to 5 minutes.
+      try {
+        const loginUrl = await urlPromise
+        return res.json({ status: 'authenticating', alias, loginUrl })
+      } catch (urlErr) {
+        try { loginProc.kill() } catch {}
+        throw urlErr
+      }
     }
 
     // Non-headless: existing flow — sf CLI opens a browser locally
