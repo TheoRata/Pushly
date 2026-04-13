@@ -180,9 +180,11 @@ export async function orgLoginWeb(alias, instanceUrl) {
 /**
  * Headless variant of orgLoginWeb for Docker/CI environments.
  *
- * In Docker, `sf org login web` cannot open a browser, but it still starts its
- * callback server on port 1717 and prints the login URL to stdout. We capture
- * that URL and return it so the frontend can open it as a popup on the host.
+ * Modern SF CLI (v2.130+) hard-fails with CannotOpenBrowserError in Docker
+ * instead of printing the OAuth URL. To work around this, we pass
+ * `--browser firefox` and rely on a fake firefox wrapper installed in the
+ * Docker image that writes the URL to $PUSHLY_URL_FILE instead of opening
+ * a browser. We poll that file to get the URL and return it to the frontend.
  *
  * Returns:
  *   - urlPromise: resolves with the captured login URL (10s timeout)
@@ -190,57 +192,66 @@ export async function orgLoginWeb(alias, instanceUrl) {
  *   - process: the spawned child process (for cleanup in tests)
  */
 export function orgLoginWebHeadless(alias, instanceUrl) {
-  const args = ['org', 'login', 'web', '--alias', alias]
+  // Unique file per login attempt — avoids races between concurrent logins
+  const urlFile = path.join(
+    os.tmpdir(),
+    `pushly-sf-login-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  )
+
+  const args = ['org', 'login', 'web', '--alias', alias, '--browser', 'firefox']
   if (instanceUrl) args.push('--instance-url', instanceUrl)
 
   const proc = spawn('sf', args, {
     timeout: 300_000,
-    env: { ...process.env },
+    env: { ...process.env, PUSHLY_URL_FILE: urlFile },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
 
   let stdout = ''
   let stderr = ''
-
   let urlResolved = false
+
+  proc.stdout.on('data', (chunk) => { stdout += chunk.toString() })
+  proc.stderr.on('data', (chunk) => { stderr += chunk.toString() })
 
   const urlPromise = new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
-      reject(new Error('Timed out waiting for login URL from sf CLI stdout'))
+      if (urlResolved) return
+      clearInterval(poll)
+      reject(new Error('Timed out waiting for login URL from sf CLI'))
     }, 10_000)
 
-    function checkForUrl() {
-      if (urlResolved) return
-      const combined = stdout + '\n' + stderr
-      const match = combined.match(/https?:\/\/[^\s"'<>]*\/services\/oauth2\/authorize[^\s"'<>]*/)
-      if (match) {
-        urlResolved = true
-        clearTimeout(timer)
-        resolve(match[0])
-      }
-    }
+    const poll = setInterval(() => {
+      if (urlResolved) { clearInterval(poll); return }
+      try {
+        if (fs.existsSync(urlFile)) {
+          const content = fs.readFileSync(urlFile, 'utf-8').trim()
+          if (content) {
+            urlResolved = true
+            clearInterval(poll)
+            clearTimeout(timer)
+            resolve(content)
+          }
+        }
+      } catch {}
+    }, 100)
 
-    proc.stdout.on('data', (chunk) => {
-      stdout += chunk.toString()
-      checkForUrl()
-    })
-    proc.stderr.on('data', (chunk) => {
-      stderr += chunk.toString()
-      checkForUrl()
-    })
     proc.on('error', (err) => {
+      clearInterval(poll)
       clearTimeout(timer)
-      reject(new Error(`Login process error: ${err.message}`))
+      if (!urlResolved) reject(new Error(`Login process error: ${err.message}`))
     })
     proc.once('close', (code) => {
-      if (urlResolved) return
+      clearInterval(poll)
       clearTimeout(timer)
+      if (urlResolved) return
       reject(new Error(stderr || stdout || `sf org login web exited with code ${code} before emitting login URL`))
     })
   })
 
   const completionPromise = new Promise((resolve, reject) => {
     proc.once('close', (code) => {
+      try { fs.unlinkSync(urlFile) } catch {}
       if (code === 0) {
         resolve({ success: true, alias })
       } else if (code === null) {

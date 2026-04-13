@@ -13,6 +13,14 @@ RUN cd client && npx vite build
 # that silently fail on Alpine (musl libc)
 FROM node:20-slim
 RUN npm install -g @salesforce/cli
+
+# Fake firefox wrapper for headless login.
+# SF CLI v2.130+ hard-fails with CannotOpenBrowserError in Docker instead of
+# printing the OAuth URL. We shim --browser firefox with a script that writes
+# the URL to $PUSHLY_URL_FILE so the backend can send it to the frontend popup.
+RUN printf '#!/bin/sh\n# Pushly fake browser: capture URL to file for headless login\nfor arg in "$@"; do url="$arg"; done\necho "$url" > "${PUSHLY_URL_FILE:-/tmp/pushly-sf-login-url}"\n' > /usr/local/bin/firefox \
+    && chmod +x /usr/local/bin/firefox
+
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY server/package.json server/package-lock.json server/
