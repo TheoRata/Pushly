@@ -124,7 +124,9 @@ router.post('/connect', async (req, res) => {
     if (isHeadless()) {
       // Kill any previous sf login process that's still waiting for a callback —
       // otherwise our new process will fail with EADDRINUSE on port 1717.
-      killActiveLoginProcesses()
+      // Awaiting is critical: the OS needs a moment to release the port after
+      // the process exits before our new spawn can bind to it.
+      await killActiveLoginProcesses()
 
       // Docker/CI: capture the login URL from sf CLI stdout and send it to the
       // frontend so it can open a popup in the user's host browser.

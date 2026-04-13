@@ -184,14 +184,33 @@ export async function orgLoginWeb(alias, instanceUrl) {
 const activeLoginProcesses = new Set()
 
 /**
- * Kill all active sf org login web processes. Called before starting a new
- * headless login to free up port 1717 inside the container.
+ * Kill all active sf org login web processes and wait for them to fully exit.
+ * Called before starting a new headless login to free up port 1717 inside
+ * the container. We await the 'close' event because sending SIGKILL returns
+ * immediately but the OS needs a moment to release the port.
  */
-export function killActiveLoginProcesses() {
-  for (const proc of activeLoginProcesses) {
-    try { proc.kill('SIGTERM') } catch {}
-  }
+export async function killActiveLoginProcesses() {
+  const procs = Array.from(activeLoginProcesses)
   activeLoginProcesses.clear()
+  await Promise.all(procs.map((proc) => new Promise((resolve) => {
+    if (proc.exitCode !== null || proc.signalCode !== null) {
+      resolve()
+      return
+    }
+    // Force-kill with SIGKILL so the port is released immediately and we don't
+    // get the noisy oclif "EEXIT 130" stack trace from sf CLI's SIGTERM handler.
+    const forceKill = setTimeout(() => {
+      try { proc.kill('SIGKILL') } catch {}
+    }, 500)
+    proc.once('close', () => {
+      clearTimeout(forceKill)
+      resolve()
+    })
+    try { proc.kill('SIGTERM') } catch {
+      clearTimeout(forceKill)
+      resolve()
+    }
+  })))
 }
 
 /**
