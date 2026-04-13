@@ -178,6 +178,84 @@ export async function orgLoginWeb(alias, instanceUrl) {
 }
 
 /**
+ * Headless variant of orgLoginWeb for Docker/CI environments.
+ *
+ * In Docker, `sf org login web` cannot open a browser, but it still starts its
+ * callback server on port 1717 and prints the login URL to stdout. We capture
+ * that URL and return it so the frontend can open it as a popup on the host.
+ *
+ * Returns:
+ *   - urlPromise: resolves with the captured login URL (10s timeout)
+ *   - completionPromise: resolves when the user completes auth and sf exits
+ *   - process: the spawned child process (for cleanup in tests)
+ */
+export function orgLoginWebHeadless(alias, instanceUrl) {
+  const args = ['org', 'login', 'web', '--alias', alias]
+  if (instanceUrl) args.push('--instance-url', instanceUrl)
+
+  const proc = spawn('sf', args, {
+    timeout: 300_000,
+    env: { ...process.env },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+
+  let stdout = ''
+  let stderr = ''
+
+  const urlPromise = new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error('Timed out waiting for login URL from sf CLI stdout'))
+    }, 10_000)
+
+    function checkForUrl() {
+      const combined = stdout + '\n' + stderr
+      const match = combined.match(/https?:\/\/[^\s"'<>]*\/services\/oauth2\/authorize[^\s"'<>]*/)
+      if (match) {
+        clearTimeout(timer)
+        resolve(match[0])
+      }
+    }
+
+    proc.stdout.on('data', (chunk) => {
+      stdout += chunk.toString()
+      checkForUrl()
+    })
+    proc.stderr.on('data', (chunk) => {
+      stderr += chunk.toString()
+      checkForUrl()
+    })
+    proc.on('error', (err) => {
+      clearTimeout(timer)
+      reject(new Error(`Login process error: ${err.message}`))
+    })
+    proc.on('close', (code) => {
+      clearTimeout(timer)
+      reject(new Error(stderr || stdout || `sf org login web exited with code ${code} before emitting login URL`))
+    })
+  })
+
+  const completionPromise = new Promise((resolve, reject) => {
+    proc.on('close', (code) => {
+      if (code === 0) {
+        resolve({ success: true, alias })
+      } else {
+        reject(new Error(stderr || stdout || `sf org login web exited with code ${code}`))
+      }
+    })
+    proc.on('error', (err) => {
+      reject(new Error(`Login process error: ${err.message}`))
+    })
+  })
+
+  // Prevent unhandled rejection warnings when urlPromise rejects but completionPromise
+  // is never awaited (e.g., URL timed out, caller bailed)
+  urlPromise.catch(() => {})
+  completionPromise.catch(() => {})
+
+  return { urlPromise, completionPromise, process: proc }
+}
+
+/**
  * Authenticate an org using an SFDX auth URL (for headless/Docker environments).
  * The auth URL format: force://<clientId>:<clientSecret>:<refreshToken>@<instanceUrl>
  */
