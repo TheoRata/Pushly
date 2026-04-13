@@ -199,7 +199,7 @@ async function startFallbackLogin() {
   }, 2000)
 
   timeoutTimer = setTimeout(() => {
-    clearInterval(pollTimer)
+    clearTimers()
     if (popupRef && !popupRef.closed) popupRef.close()
     step.value = 'error'
     errorMessage.value = 'Login timed out. Please try again.'
