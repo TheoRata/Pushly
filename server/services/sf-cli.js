@@ -202,15 +202,19 @@ export function orgLoginWebHeadless(alias, instanceUrl) {
   let stdout = ''
   let stderr = ''
 
+  let urlResolved = false
+
   const urlPromise = new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       reject(new Error('Timed out waiting for login URL from sf CLI stdout'))
     }, 10_000)
 
     function checkForUrl() {
+      if (urlResolved) return
       const combined = stdout + '\n' + stderr
       const match = combined.match(/https?:\/\/[^\s"'<>]*\/services\/oauth2\/authorize[^\s"'<>]*/)
       if (match) {
+        urlResolved = true
         clearTimeout(timer)
         resolve(match[0])
       }
@@ -228,16 +232,19 @@ export function orgLoginWebHeadless(alias, instanceUrl) {
       clearTimeout(timer)
       reject(new Error(`Login process error: ${err.message}`))
     })
-    proc.on('close', (code) => {
+    proc.once('close', (code) => {
+      if (urlResolved) return
       clearTimeout(timer)
       reject(new Error(stderr || stdout || `sf org login web exited with code ${code} before emitting login URL`))
     })
   })
 
   const completionPromise = new Promise((resolve, reject) => {
-    proc.on('close', (code) => {
+    proc.once('close', (code) => {
       if (code === 0) {
         resolve({ success: true, alias })
+      } else if (code === null) {
+        reject(new Error('sf org login web was killed or timed out before completing'))
       } else {
         reject(new Error(stderr || stdout || `sf org login web exited with code ${code}`))
       }

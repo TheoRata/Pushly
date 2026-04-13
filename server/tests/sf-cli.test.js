@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { sfCommand, sfCommandStream, listOrgs } from '../services/sf-cli.js'
-import { orgLoginWebHeadless } from '../services/sf-cli.js'
+import { sfCommand, sfCommandStream, listOrgs, orgLoginWebHeadless } from '../services/sf-cli.js'
 import { checkPrerequisites } from '../utils/prerequisites.js'
 
 describe('checkPrerequisites', () => {
@@ -63,8 +62,4 @@ describe('orgLoginWebHeadless', () => {
     result.completionPromise.catch(() => {})
     result.urlPromise.catch(() => {})
   })
-
-  it('rejects urlPromise with timeout error if no URL appears in stdout within 10s', async () => {
-    // Integration smoke test; covered only when sf CLI is installed. No-op otherwise.
-  }, 15000)
 })
