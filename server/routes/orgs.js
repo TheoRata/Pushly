@@ -1,6 +1,5 @@
 import { Router } from 'express'
-import { listOrgs, orgDisplay, orgLoginWeb, orgLoginSfdxUrl, isHeadless } from '../services/sf-cli.js'
-import { sfCommand } from '../services/sf-cli.js'
+import { listOrgs, orgDisplay, orgLoginWeb, orgLoginWebHeadless, killActiveLoginProcesses, orgLoginSfdxUrl, isHeadless, sfCommand } from '../services/sf-cli.js'
 
 const router = Router()
 
@@ -110,7 +109,6 @@ router.post('/connect', async (req, res) => {
   // Custom domain takes priority, then fall back to standard login URLs
   let instanceUrl
   if (customDomain && customDomain.trim()) {
-    // Normalize: add https:// if missing, strip trailing slashes
     let domain = customDomain.trim()
     if (!domain.startsWith('http')) domain = `https://${domain}`
     instanceUrl = domain.replace(/\/+$/, '')
@@ -121,26 +119,59 @@ router.post('/connect', async (req, res) => {
   }
 
   try {
-    // Track login state so health polling can report errors
     pendingLogins.set(alias, { status: 'authenticating', startedAt: Date.now() })
 
-    // Start the login flow — sf CLI opens a browser for OAuth
+    if (isHeadless()) {
+      // Kill any previous sf login process that's still waiting for a callback —
+      // otherwise our new process will fail with EADDRINUSE on port 1717.
+      // Awaiting is critical: the OS needs a moment to release the port after
+      // the process exits before our new spawn can bind to it.
+      await killActiveLoginProcesses()
+
+      // Docker/CI: capture the login URL from sf CLI stdout and send it to the
+      // frontend so it can open a popup in the user's host browser.
+      const { urlPromise, completionPromise, process: loginProc } = orgLoginWebHeadless(alias, instanceUrl)
+
+      // Wire completion to pendingLogins (fire-and-forget)
+      completionPromise
+        .then(() => {
+          pendingLogins.set(alias, { status: 'connected' })
+          setTimeout(() => pendingLogins.delete(alias), 30000)
+        })
+        .catch((err) => {
+          console.error(`Headless login error for ${alias}:`, err.message || err)
+          pendingLogins.set(alias, { status: 'error', error: err.message || 'Login failed' })
+          setTimeout(() => pendingLogins.delete(alias), 60000)
+        })
+
+      // Await URL capture (fast — typically <1s).
+      // If it times out or errors, kill the spawned sf process before re-throwing
+      // so it doesn't run orphaned for up to 5 minutes.
+      try {
+        const loginUrl = await urlPromise
+        return res.json({ status: 'authenticating', alias, loginUrl })
+      } catch (urlErr) {
+        try { loginProc.kill() } catch {}
+        throw urlErr
+      }
+    }
+
+    // Non-headless: existing flow — sf CLI opens a browser locally
     orgLoginWeb(alias, instanceUrl)
       .then(() => {
         pendingLogins.set(alias, { status: 'connected' })
-        // Clean up after 30s
         setTimeout(() => pendingLogins.delete(alias), 30000)
       })
       .catch((err) => {
         console.error(`OAuth flow error for ${alias}:`, err.message || err)
         pendingLogins.set(alias, { status: 'error', error: err.message || 'Login failed' })
-        // Clean up after 60s
         setTimeout(() => pendingLogins.delete(alias), 60000)
       })
 
-    // Return immediately — OAuth happens in the browser
     res.json({ status: 'authenticating', alias })
   } catch (err) {
+    pendingLogins.set(alias, { status: 'error', error: err.message || 'Login failed' })
+    setTimeout(() => pendingLogins.delete(alias), 60000)
     res.status(500).json({ error: err.message || 'Failed to start org connection' })
   }
 })
@@ -218,6 +249,74 @@ router.get('/:alias/health', async (req, res) => {
       error: err.message || 'Org not reachable',
     })
   }
+})
+
+/**
+ * GET /api/orgs/login-success — branded success page shown in the login popup
+ * after auth completes. Auto-closes after a countdown. Served from our origin
+ * (port 3000) so window.close() works.
+ */
+router.get('/login-success', (_req, res) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8')
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pushly — Connected</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh; margin: 0;
+      background: #171717; color: #e5e5e5;
+    }
+    .card {
+      text-align: center; padding: 3rem 2rem; max-width: 420px;
+      background: rgba(255,255,255,0.03); border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .check {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 64px; height: 64px; border-radius: 50%;
+      background: #22c55e; color: white;
+      font-size: 2rem; font-weight: bold;
+      margin-bottom: 1.5rem;
+    }
+    h1 {
+      margin: 0 0 0.75rem;
+      font-size: 1.5rem; font-weight: 600;
+      color: #fafafa;
+    }
+    p {
+      margin: 0; color: #a3a3a3;
+      font-size: 0.95rem;
+    }
+    .countdown { font-weight: 600; color: #e5e5e5; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="check">&check;</div>
+    <h1>Connection successful</h1>
+    <p>This window will close automatically in <span class="countdown" id="count">5</span> seconds.</p>
+  </div>
+  <script>
+    let remaining = 5;
+    const el = document.getElementById('count');
+    const interval = setInterval(() => {
+      remaining -= 1;
+      if (remaining <= 0) {
+        clearInterval(interval);
+        window.close();
+      } else {
+        el.textContent = String(remaining);
+      }
+    }, 1000);
+  </script>
+</body>
+</html>`)
 })
 
 export default router

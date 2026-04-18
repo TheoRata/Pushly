@@ -3,11 +3,18 @@ services:
     build: .
     ports:
       - "3000:3000"
+      # Port 1717 is used by the Salesforce CLI OAuth callback when logging
+      # in from the browser. Required for the in-app Salesforce login flow.
+      - "1717:1717"
     volumes:
       - pushly-data:/app/data
       - pushly-workspaces:/app/workspaces
+      # SF CLI stores org auth tokens in ~/.sf/ — must persist across restarts
+      # or all connected orgs are lost when the container is recreated.
+      - pushly-sf-auth:/root/.sf
     restart: unless-stopped
 
 volumes:
   pushly-data:
   pushly-workspaces:
+  pushly-sf-auth:

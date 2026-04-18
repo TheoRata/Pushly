@@ -168,7 +168,11 @@ router.get('/:orgAlias/components', async (req, res) => {
     const components = await listMetadata(orgAlias, type)
     const componentList = Array.isArray(components) ? components : [components].filter(Boolean)
 
-    setCachedComponents(orgAlias, type, componentList)
+    // Don't cache empty results — may be a transient "not ready" response
+    // from a freshly authenticated org. See batch-components for rationale.
+    if (componentList.length > 0) {
+      setCachedComponents(orgAlias, type, componentList)
+    }
 
     res.json({ components: componentList })
   } catch (err) {
@@ -255,7 +259,13 @@ router.post('/:orgAlias/batch-components', async (req, res) => {
   const tasks = uncachedTypes.map((type) => async () => {
     const raw = await listMetadata(orgAlias, type)
     const components = Array.isArray(raw) ? raw : [raw].filter(Boolean)
-    setCachedComponents(orgAlias, type, components)
+    // Don't cache empty results — a newly authenticated org may not be ready
+    // for metadata queries yet (OAuth token propagation, org provisioning).
+    // Caching empty would make the tree look permanently empty until the
+    // user hits "hard refresh". Only cache when we got real data.
+    if (components.length > 0) {
+      setCachedComponents(orgAlias, type, components)
+    }
     return { type, components }
   })
 

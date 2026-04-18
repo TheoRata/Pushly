@@ -129,8 +129,9 @@ async function startOAuthLogin() {
 }
 
 async function startFallbackLogin() {
+  let result
   try {
-    await connectOrg(
+    result = await connectOrg(
       alias.value.trim(),
       orgType.value,
       customDomain.value.trim() || ''
@@ -141,15 +142,56 @@ async function startFallbackLogin() {
     return
   }
 
+  // If the server returned a loginUrl (headless/Docker mode), open it as a popup.
+  // The user logs in in the popup, the sf CLI callback server on port 1717
+  // receives the redirect, and our polling detects when the org becomes connected.
+  if (result && result.loginUrl) {
+    const width = 600, height = 700
+    const left = window.screenX + (window.outerWidth - width) / 2
+    const top = window.screenY + (window.outerHeight - height) / 2
+    popupRef = window.open(
+      result.loginUrl,
+      'pushly-login',
+      `width=${width},height=${height},left=${left},top=${top}`
+    )
+
+    if (!popupRef || popupRef.closed) {
+      step.value = 'error'
+      errorMessage.value = 'Popup was blocked by the browser. Please allow popups for this site.'
+      return
+    }
+
+    // Detect if user closes the popup manually without completing auth.
+    // We don't error immediately because health polling may still detect success
+    // if the SF CLI callback completed before the popup closed.
+    popupPollTimer = setInterval(() => {
+      if (popupRef && popupRef.closed && step.value === 'waiting') {
+        clearInterval(popupPollTimer)
+        popupPollTimer = null
+      }
+    }, 1000)
+  }
+
+  // Poll for auth completion (works for both headless popup flow and non-headless CLI flow)
   pollTimer = setInterval(async () => {
     try {
       const health = await checkHealth(alias.value.trim())
       if (health && health.status === 'connected') {
         clearTimers()
+        // Navigate popup to our branded success page (cross-origin navigation
+        // from opener is allowed). The success page auto-closes after 5s.
+        if (popupRef && !popupRef.closed) {
+          try {
+            popupRef.location.href = `${window.location.origin}/api/orgs/login-success`
+          } catch {
+            // If navigation fails, user can close the popup manually
+          }
+        }
         step.value = 'success'
         emit('connected', alias.value.trim())
       } else if (health && health.status === 'error') {
         clearTimers()
+        if (popupRef && !popupRef.closed) popupRef.close()
         step.value = 'error'
         errorMessage.value = health.error || 'Login failed. Please try again.'
       }
@@ -157,7 +199,8 @@ async function startFallbackLogin() {
   }, 2000)
 
   timeoutTimer = setTimeout(() => {
-    clearInterval(pollTimer)
+    clearTimers()
+    if (popupRef && !popupRef.closed) popupRef.close()
     step.value = 'error'
     errorMessage.value = 'Login timed out. Please try again.'
   }, 120000)
@@ -267,10 +310,7 @@ onUnmounted(() => {
         </svg>
         <p class="text-[var(--text-primary)] font-medium text-sm">Waiting for Salesforce login...</p>
         <p class="text-[var(--text-muted)] text-xs mt-2">
-          {{ oauthConfigured
-            ? 'Complete the login in the popup window'
-            : 'Complete the login in your browser'
-          }}
+          Complete the login in the popup window
         </p>
       </div>
     </template>

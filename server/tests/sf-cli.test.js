@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { sfCommand, sfCommandStream, listOrgs } from '../services/sf-cli.js'
+import { sfCommand, sfCommandStream, listOrgs, orgLoginWebHeadless } from '../services/sf-cli.js'
 import { checkPrerequisites } from '../utils/prerequisites.js'
 
 describe('checkPrerequisites', () => {
@@ -47,5 +47,19 @@ describe('sfCommandStream', () => {
     } catch {
       // sf CLI not installed — acceptable in CI
     }
+  })
+})
+
+describe('orgLoginWebHeadless', () => {
+  it('returns an object with urlPromise and completionPromise', () => {
+    const result = orgLoginWebHeadless('test-alias-shape', 'https://login.salesforce.com')
+    expect(result).toHaveProperty('urlPromise')
+    expect(result).toHaveProperty('completionPromise')
+    expect(result).toHaveProperty('process')
+    expect(result.urlPromise).toBeInstanceOf(Promise)
+    expect(result.completionPromise).toBeInstanceOf(Promise)
+    try { result.process.kill('SIGKILL') } catch {}
+    result.completionPromise.catch(() => {})
+    result.urlPromise.catch(() => {})
   })
 })

@@ -177,6 +177,145 @@ export async function orgLoginWeb(alias, instanceUrl) {
   })
 }
 
+// Track active headless login processes. Only one can run at a time because
+// the SF CLI callback server always binds to port 1717 inside the container.
+// Before starting a new login, we must kill any previous attempt that's still
+// waiting for a callback.
+const activeLoginProcesses = new Set()
+
+/**
+ * Kill all active sf org login web processes and wait for them to fully exit.
+ * Called before starting a new headless login to free up port 1717 inside
+ * the container. We await the 'close' event because sending SIGKILL returns
+ * immediately but the OS needs a moment to release the port.
+ */
+export async function killActiveLoginProcesses() {
+  const procs = Array.from(activeLoginProcesses)
+  activeLoginProcesses.clear()
+  await Promise.all(procs.map((proc) => new Promise((resolve) => {
+    if (proc.exitCode !== null || proc.signalCode !== null) {
+      resolve()
+      return
+    }
+    // Force-kill with SIGKILL so the port is released immediately and we don't
+    // get the noisy oclif "EEXIT 130" stack trace from sf CLI's SIGTERM handler.
+    const forceKill = setTimeout(() => {
+      try { proc.kill('SIGKILL') } catch {}
+    }, 500)
+    proc.once('close', () => {
+      clearTimeout(forceKill)
+      resolve()
+    })
+    try { proc.kill('SIGTERM') } catch {
+      clearTimeout(forceKill)
+      resolve()
+    }
+  })))
+}
+
+/**
+ * Headless variant of orgLoginWeb for Docker/CI environments.
+ *
+ * Modern SF CLI (v2.130+) hard-fails with CannotOpenBrowserError in Docker
+ * instead of printing the OAuth URL. To work around this, we pass
+ * `--browser firefox` and rely on a fake firefox wrapper installed in the
+ * Docker image that writes the URL to $PUSHLY_URL_FILE instead of opening
+ * a browser. We poll that file to get the URL and return it to the frontend.
+ *
+ * The caller (POST /connect) is expected to call killActiveLoginProcesses()
+ * before invoking this function to free port 1717 from any previous attempt.
+ *
+ * Returns:
+ *   - urlPromise: resolves with the captured login URL (10s timeout)
+ *   - completionPromise: resolves when the user completes auth and sf exits
+ *   - process: the spawned child process (for cleanup in tests)
+ */
+export function orgLoginWebHeadless(alias, instanceUrl) {
+  // Unique file per login attempt — avoids races between concurrent logins
+  const urlFile = path.join(
+    os.tmpdir(),
+    `pushly-sf-login-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  )
+
+  const args = ['org', 'login', 'web', '--alias', alias, '--browser', 'firefox']
+  if (instanceUrl) args.push('--instance-url', instanceUrl)
+
+  const proc = spawn('sf', args, {
+    timeout: 300_000,
+    env: { ...process.env, PUSHLY_URL_FILE: urlFile },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+
+  // Track this process so a subsequent login can kill it if the user abandons
+  activeLoginProcesses.add(proc)
+  proc.once('close', () => activeLoginProcesses.delete(proc))
+
+  let stdout = ''
+  let stderr = ''
+  let urlResolved = false
+
+  proc.stdout.on('data', (chunk) => { stdout += chunk.toString() })
+  proc.stderr.on('data', (chunk) => { stderr += chunk.toString() })
+
+  const urlPromise = new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      if (urlResolved) return
+      clearInterval(poll)
+      reject(new Error('Timed out waiting for login URL from sf CLI'))
+    }, 10_000)
+
+    const poll = setInterval(() => {
+      if (urlResolved) { clearInterval(poll); return }
+      try {
+        if (fs.existsSync(urlFile)) {
+          const content = fs.readFileSync(urlFile, 'utf-8').trim()
+          if (content) {
+            urlResolved = true
+            clearInterval(poll)
+            clearTimeout(timer)
+            resolve(content)
+          }
+        }
+      } catch {}
+    }, 100)
+
+    proc.on('error', (err) => {
+      clearInterval(poll)
+      clearTimeout(timer)
+      if (!urlResolved) reject(new Error(`Login process error: ${err.message}`))
+    })
+    proc.once('close', (code) => {
+      clearInterval(poll)
+      clearTimeout(timer)
+      if (urlResolved) return
+      reject(new Error(stderr || stdout || `sf org login web exited with code ${code} before emitting login URL`))
+    })
+  })
+
+  const completionPromise = new Promise((resolve, reject) => {
+    proc.once('close', (code) => {
+      try { fs.unlinkSync(urlFile) } catch {}
+      if (code === 0) {
+        resolve({ success: true, alias })
+      } else if (code === null) {
+        reject(new Error('sf org login web was killed or timed out before completing'))
+      } else {
+        reject(new Error(stderr || stdout || `sf org login web exited with code ${code}`))
+      }
+    })
+    proc.on('error', (err) => {
+      reject(new Error(`Login process error: ${err.message}`))
+    })
+  })
+
+  // Prevent unhandled rejection warnings when urlPromise rejects but completionPromise
+  // is never awaited (e.g., URL timed out, caller bailed)
+  urlPromise.catch(() => {})
+  completionPromise.catch(() => {})
+
+  return { urlPromise, completionPromise, process: proc }
+}
+
 /**
  * Authenticate an org using an SFDX auth URL (for headless/Docker environments).
  * The auth URL format: force://<clientId>:<clientSecret>:<refreshToken>@<instanceUrl>
