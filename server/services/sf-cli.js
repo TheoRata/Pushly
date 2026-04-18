@@ -12,6 +12,12 @@ import { translateError } from '../utils/error-translator.js'
  * @param {number} options.timeout - Timeout in ms (default 120000)
  * @returns {Promise<any>} Parsed JSON result
  */
+// Matches ANSI CSI/SGR escape sequences (colors, cursor control).
+// SF CLI emits these even with --json if the user's env has FORCE_COLOR set,
+// which breaks JSON.parse. Strip them defensively before parsing.
+const ANSI_REGEX = /\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g
+const stripAnsi = (s) => s.replace(ANSI_REGEX, '')
+
 export async function sfCommand(args, options = {}) {
   const { cwd, timeout = 120_000 } = options
   const fullArgs = [...args]
@@ -23,7 +29,11 @@ export async function sfCommand(args, options = {}) {
     const proc = spawn('sf', fullArgs, {
       cwd,
       timeout,
-      env: { ...process.env },
+      env: {
+        ...process.env,
+        FORCE_COLOR: '0',
+        NO_COLOR: '1',
+      },
     })
 
     let stdout = ''
@@ -45,6 +55,7 @@ export async function sfCommand(args, options = {}) {
 
     proc.on('close', (code) => {
       // Try to parse JSON from stdout
+      stdout = stripAnsi(stdout)
       let parsed
       try {
         parsed = JSON.parse(stdout)
