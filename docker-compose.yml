@@ -9,8 +9,12 @@ services:
     volumes:
       - pushly-data:/app/data
       - pushly-workspaces:/app/workspaces
+      # SF CLI stores org auth tokens in ~/.sf/ — must persist across restarts
+      # or all connected orgs are lost when the container is recreated.
+      - pushly-sf-auth:/root/.sf
     restart: unless-stopped
 
 volumes:
   pushly-data:
   pushly-workspaces:
+  pushly-sf-auth:
