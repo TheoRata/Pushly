@@ -38,12 +38,18 @@ const allPassed = computed(() => prereqResult.value?.ok || prereqResult.value?.c
   />
 
   <div v-else class="min-h-screen">
+    <a
+      href="#main-content"
+      class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:rounded-[var(--radius-md)] focus:bg-[var(--color-primary)] focus:text-white"
+    >
+      Skip to content
+    </a>
     <TopNavBar>
       <template #right>
         <GlassBadge v-if="connectedCount > 0" variant="purple" size="sm">{{ connectedCount }} org{{ connectedCount !== 1 ? 's' : '' }}</GlassBadge>
       </template>
     </TopNavBar>
-    <main class="pt-14">
+    <main id="main-content" class="pt-14">
       <router-view v-slot="{ Component }">
         <transition name="fade" mode="out-in">
           <component :is="Component" />
