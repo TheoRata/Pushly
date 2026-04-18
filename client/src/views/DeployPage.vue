@@ -735,8 +735,8 @@ function formatDate(dateStr) {
           </p>
 
           <!-- Validating skeleton -->
-          <div v-if="validating" class="flex flex-col items-center gap-3 py-12">
-            <div class="w-full max-w-md space-y-3">
+          <div v-if="validating" class="flex flex-col items-center gap-3 py-12" role="status" aria-live="polite">
+            <div aria-hidden="true" class="w-full max-w-md space-y-3">
               <GlassSkeleton variant="line" width="60%" height="14px" />
               <GlassSkeleton variant="rect" width="100%" height="8px" rounded="var(--radius-sm)" />
               <div class="flex justify-between">
@@ -744,6 +744,7 @@ function formatDate(dateStr) {
                 <GlassSkeleton variant="line" width="40px" height="12px" />
               </div>
             </div>
+            <span class="sr-only">Validating deployment...</span>
           </div>
 
           <!-- Validation error -->

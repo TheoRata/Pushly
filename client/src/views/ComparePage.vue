@@ -207,14 +207,15 @@ const sortOptions = [
     <div class="flex-1 overflow-hidden flex flex-col">
 
       <!-- Loading skeleton -->
-      <div v-if="loading" class="flex-1 grid grid-cols-2 gap-4">
-        <div v-for="n in 2" :key="n" class="glass p-5 space-y-4">
+      <div v-if="loading" class="flex-1 grid grid-cols-2 gap-4" role="status" aria-live="polite">
+        <div v-for="n in 2" :key="n" class="glass p-5 space-y-4" aria-hidden="true">
           <GlassSkeleton variant="line" width="120px" height="18px" />
           <div v-for="m in 6" :key="m" class="flex items-center gap-3">
             <GlassSkeleton variant="line" width="16px" height="16px" rounded="var(--radius-sm)" />
             <GlassSkeleton variant="line" :width="m % 2 === 0 ? '70%' : '55%'" height="14px" />
           </div>
         </div>
+        <span class="sr-only">Fetching metadata inventory from both orgs...</span>
       </div>
 
       <!-- Error -->

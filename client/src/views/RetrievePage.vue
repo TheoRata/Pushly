@@ -223,9 +223,12 @@ function tryAgain() {
           </div>
 
           <!-- Auth check skeleton -->
-          <div v-if="selectedOrg && authChecking" class="mt-4 flex items-center gap-2">
-            <GlassSkeleton variant="circle" width="16px" height="16px" />
-            <GlassSkeleton variant="line" width="140px" height="14px" />
+          <div v-if="selectedOrg && authChecking" class="mt-4 flex items-center gap-2" role="status" aria-live="polite">
+            <div aria-hidden="true" class="flex items-center gap-2">
+              <GlassSkeleton variant="circle" width="16px" height="16px" />
+              <GlassSkeleton variant="line" width="140px" height="14px" />
+            </div>
+            <span class="sr-only">Checking connection...</span>
           </div>
           <div v-else-if="selectedOrg && authOk" class="mt-4 flex items-center gap-2">
             <GlassBadge variant="success">Connected</GlassBadge>
