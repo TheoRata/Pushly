@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useApi } from './composables/useApi'
 import { useOrgs } from './composables/useOrgs'
 import TopNavBar from './components/TopNavBar.vue'
+import ThemeToggle from './components/ThemeToggle.vue'
 import PrerequisiteError from './components/PrerequisiteError.vue'
 import Toast from './components/Toast.vue'
 import GlassBadge from './components/glass/GlassBadge.vue'
@@ -40,7 +41,10 @@ const allPassed = computed(() => prereqResult.value?.ok || prereqResult.value?.c
   <div v-else class="min-h-screen">
     <TopNavBar>
       <template #right>
-        <GlassBadge v-if="connectedCount > 0" variant="purple" size="sm">{{ connectedCount }} org{{ connectedCount !== 1 ? 's' : '' }}</GlassBadge>
+        <div class="flex items-center gap-2">
+          <GlassBadge v-if="connectedCount > 0" variant="purple" size="sm">{{ connectedCount }} org{{ connectedCount !== 1 ? 's' : '' }}</GlassBadge>
+          <ThemeToggle />
+        </div>
       </template>
     </TopNavBar>
     <main class="pt-14">
