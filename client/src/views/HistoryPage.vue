@@ -7,6 +7,7 @@ import GlassButton from '../components/glass/GlassButton.vue'
 import GlassBadge from '../components/glass/GlassBadge.vue'
 import GlassToggle from '../components/glass/GlassToggle.vue'
 import GlassPagination from '../components/glass/GlassPagination.vue'
+import GlassSkeleton from '../components/glass/GlassSkeleton.vue'
 
 const { get, post } = useApi()
 
@@ -422,9 +423,22 @@ watch([filterUser, filterOrg, filterStatus, filterRange], fetchHistory)
 
       <!-- Log Rows -->
       <div class="flex-1">
-        <!-- Loading -->
-        <div v-if="loading && records.length === 0" class="flex items-center justify-center py-20">
-          <div class="inline-block w-6 h-6 border-2 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" />
+        <!-- Loading skeleton -->
+        <div v-if="loading && records.length === 0" class="glass overflow-hidden">
+          <div class="flex items-center gap-4 px-4 py-3 border-b border-[var(--glass-border)]">
+            <GlassSkeleton variant="line" width="15%" height="12px" />
+            <GlassSkeleton variant="line" width="20%" height="12px" />
+            <GlassSkeleton variant="line" width="15%" height="12px" />
+            <GlassSkeleton variant="line" width="25%" height="12px" />
+            <GlassSkeleton variant="line" width="10%" height="12px" />
+          </div>
+          <div v-for="n in 8" :key="n" class="flex items-center gap-4 px-4 py-4 border-b border-[var(--glass-border)] last:border-0">
+            <GlassSkeleton variant="line" width="15%" height="14px" />
+            <GlassSkeleton variant="line" width="20%" height="14px" />
+            <GlassSkeleton variant="line" width="15%" height="14px" />
+            <GlassSkeleton variant="line" width="25%" height="14px" />
+            <GlassSkeleton variant="line" width="10%" height="24px" rounded="var(--radius-sm)" />
+          </div>
         </div>
 
         <!-- Empty -->
