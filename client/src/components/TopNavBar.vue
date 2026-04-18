@@ -32,9 +32,9 @@ const icons = {
   <nav class="fixed top-0 left-0 right-0 z-40 h-14 flex items-center px-4 glass border-t-0 border-l-0 border-r-0 rounded-none border-b border-b-[var(--glass-border)]" style="background: var(--nav-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);">
     <router-link to="/" class="flex items-center gap-2 mr-8">
       <div class="w-7 h-7 rounded-[var(--radius-sm)] bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-end)] flex items-center justify-center">
-        <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-          <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838l-3.14 1.346 2.14.916a1 1 0 00.788 0l7-3a1 1 0 000-1.84l-7-3z" />
-          <path d="M3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0z" />
+        <svg class="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10 3c0 0-4 4-4 9l4 4 4-4c0-5-4-9-4-9z"/>
+          <path d="M8 14l-2 2M12 14l2 2"/>
         </svg>
       </div>
       <SpecialText text="Pushly" :speed="25" :delay="0.3" class="text-sm font-semibold text-[var(--text-primary)]" />

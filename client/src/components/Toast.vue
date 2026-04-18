@@ -6,7 +6,7 @@ const { toasts } = useToast()
 
 <template>
   <Teleport to="body">
-    <div class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none">
+    <div class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none" aria-live="polite">
       <TransitionGroup
         enter-active-class="transition-all duration-300 ease-out"
         enter-from-class="opacity-0 translate-x-8"
@@ -18,6 +18,7 @@ const { toasts } = useToast()
         <div
           v-for="toast in toasts"
           :key="toast.id"
+          role="alert"
           class="pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-full text-sm font-medium min-w-[280px] max-w-[400px] backdrop-blur-[var(--glass-blur)]"
           :class="toast.type === 'success'
             ? 'bg-[var(--color-success-bg)] border border-[var(--color-success-border)] text-[var(--color-success)]'

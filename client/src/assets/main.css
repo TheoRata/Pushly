@@ -1,42 +1,46 @@
 @import "tailwindcss";
+@import "@fontsource/geist-sans/400.css";
+@import "@fontsource/geist-sans/500.css";
+@import "@fontsource/geist-sans/600.css";
+@import "@fontsource/geist-sans/700.css";
 
 :root {
   /* Shadcn theme tokens — light mode */
   --card: #ffffff;
-  --ring: #3b82f6;
+  --ring: #5b6cf0;
   --input: #e5e7eb;
   --muted: #f9fafb;
-  --accent: #e0f2fe;
+  --accent: #e8e6ff;
   --border: #e5e7eb;
   --radius: 0.375rem;
-  --chart-1: #3b82f6;
-  --chart-2: #2563eb;
-  --chart-3: #1d4ed8;
-  --chart-4: #1e40af;
-  --chart-5: #1e3a8a;
+  --chart-1: #5b6cf0;
+  --chart-2: #4f5fe8;
+  --chart-3: #4555d9;
+  --chart-4: #3b47c9;
+  --chart-5: #2f39b0;
   --popover: #ffffff;
-  --primary: #3b82f6;
+  --primary: #5b6cf0;
   --sidebar: #f9fafb;
   --font-mono: JetBrains Mono, monospace;
-  --font-sans: Inter, sans-serif;
+  --font-sans: 'Geist Sans', sans-serif;
   --secondary: #f3f4f6;
   --background: #ffffff;
   --font-serif: Source Serif 4, serif;
   --foreground: #333333;
   --destructive: #ef4444;
-  --sidebar-ring: #3b82f6;
-  --sidebar-accent: #e0f2fe;
+  --sidebar-ring: #5b6cf0;
+  --sidebar-accent: #e8e6ff;
   --sidebar-border: #e5e7eb;
   --card-foreground: #333333;
-  --sidebar-primary: #3b82f6;
+  --sidebar-primary: #5b6cf0;
   --muted-foreground: #6b7280;
-  --accent-foreground: #1e3a8a;
+  --accent-foreground: #2f39b0;
   --popover-foreground: #333333;
   --primary-foreground: #ffffff;
   --sidebar-foreground: #333333;
   --secondary-foreground: #4b5563;
   --destructive-foreground: #ffffff;
-  --sidebar-accent-foreground: #1e3a8a;
+  --sidebar-accent-foreground: #2f39b0;
   --sidebar-primary-foreground: #ffffff;
 
   /* Backgrounds */
@@ -60,12 +64,12 @@
   --radius-md: 8px;
   --radius-sm: 6px;
 
-  /* Primary accent — blue */
-  --color-primary: #3b82f6;
-  --color-primary-end: #2563eb;
-  --color-primary-glow: rgba(59, 130, 246, 0.12);
-  --color-primary-bg: rgba(59, 130, 246, 0.08);
-  --color-primary-border: rgba(59, 130, 246, 0.20);
+  /* Primary accent — indigo */
+  --color-primary: #5b6cf0;
+  --color-primary-end: #4555d9;
+  --color-primary-glow: rgba(91, 108, 240, 0.12);
+  --color-primary-bg: rgba(91, 108, 240, 0.08);
+  --color-primary-border: rgba(91, 108, 240, 0.20);
 
   /* Status */
   --color-success: #22c55e;
@@ -77,9 +81,9 @@
   --color-warning: #f59e0b;
   --color-warning-bg: rgba(245, 158, 11, 0.08);
   --color-warning-border: rgba(245, 158, 11, 0.20);
-  --color-info: #3b82f6;
-  --color-info-bg: rgba(59, 130, 246, 0.08);
-  --color-info-border: rgba(59, 130, 246, 0.20);
+  --color-info: #5b6cf0;
+  --color-info-bg: rgba(91, 108, 240, 0.08);
+  --color-info-border: rgba(91, 108, 240, 0.20);
 
   /* Text */
   --text-primary: #333333;
@@ -89,36 +93,36 @@
 
 .dark {
   --card: #262626;
-  --ring: #3b82f6;
+  --ring: #7b8af5;
   --input: #404040;
   --muted: #262626;
-  --accent: #1e3a8a;
+  --accent: #2f39b0;
   --border: #404040;
-  --chart-1: #60a5fa;
-  --chart-2: #3b82f6;
-  --chart-3: #2563eb;
-  --chart-4: #1d4ed8;
-  --chart-5: #1e40af;
+  --chart-1: #7b8af5;
+  --chart-2: #6b7af2;
+  --chart-3: #5b6cf0;
+  --chart-4: #4f5fe8;
+  --chart-5: #4555d9;
   --popover: #262626;
-  --primary: #3b82f6;
+  --primary: #7b8af5;
   --sidebar: #171717;
   --secondary: #262626;
   --background: #171717;
   --foreground: #e5e5e5;
   --destructive: #ef4444;
-  --sidebar-ring: #3b82f6;
-  --sidebar-accent: #1e3a8a;
+  --sidebar-ring: #7b8af5;
+  --sidebar-accent: #2f39b0;
   --sidebar-border: #404040;
   --card-foreground: #e5e5e5;
-  --sidebar-primary: #3b82f6;
+  --sidebar-primary: #7b8af5;
   --muted-foreground: #a3a3a3;
-  --accent-foreground: #bfdbfe;
+  --accent-foreground: #c7c9ff;
   --popover-foreground: #e5e5e5;
   --primary-foreground: #ffffff;
   --sidebar-foreground: #e5e5e5;
   --secondary-foreground: #e5e5e5;
   --destructive-foreground: #ffffff;
-  --sidebar-accent-foreground: #bfdbfe;
+  --sidebar-accent-foreground: #c7c9ff;
   --sidebar-primary-foreground: #ffffff;
 
   /* Backgrounds — dark */
@@ -135,12 +139,12 @@
   --glass-border: #404040;
   --glass-border-hover: #525252;
 
-  /* Primary accent — blue on dark */
-  --color-primary: #60a5fa;
-  --color-primary-end: #3b82f6;
-  --color-primary-glow: rgba(96, 165, 250, 0.15);
-  --color-primary-bg: rgba(96, 165, 250, 0.10);
-  --color-primary-border: rgba(96, 165, 250, 0.25);
+  /* Primary accent — indigo on dark */
+  --color-primary: #7b8af5;
+  --color-primary-end: #5b6cf0;
+  --color-primary-glow: rgba(123, 138, 245, 0.15);
+  --color-primary-bg: rgba(123, 138, 245, 0.10);
+  --color-primary-border: rgba(123, 138, 245, 0.25);
 
   /* Status — dark */
   --color-success: #4ade80;
@@ -152,9 +156,9 @@
   --color-warning: #fbbf24;
   --color-warning-bg: rgba(251, 191, 36, 0.10);
   --color-warning-border: rgba(251, 191, 36, 0.20);
-  --color-info: #60a5fa;
-  --color-info-bg: rgba(96, 165, 250, 0.10);
-  --color-info-border: rgba(96, 165, 250, 0.20);
+  --color-info: #7b8af5;
+  --color-info-bg: rgba(123, 138, 245, 0.10);
+  --color-info-border: rgba(123, 138, 245, 0.20);
 
   /* Text — dark */
   --text-primary: #e5e5e5;
@@ -245,4 +249,21 @@ body::after {
 
 .glow-sm {
   box-shadow: 0 0 8px var(--color-primary-glow);
+}
+
+/* Skeleton loader */
+.skeleton-pulse {
+  background: linear-gradient(
+    90deg,
+    var(--glass-bg) 0%,
+    var(--glass-bg-hover) 50%,
+    var(--glass-bg) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
