@@ -127,7 +127,7 @@ watch(query, () => { highlightIndex.value = 0 })
     >
       <div
         v-if="open"
-        class="absolute z-50 mt-1 w-full rounded-[var(--radius-lg)] border border-[var(--glass-border)] shadow-xl overflow-hidden"
+        class="absolute z-50 mt-1 w-full rounded-[var(--radius-lg)] border border-[var(--glass-border)] shadow-[0_20px_40px_rgba(91,108,240,0.12)] overflow-hidden"
         style="background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);"
       >
         <!-- Search -->
