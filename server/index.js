@@ -141,6 +141,16 @@ const isMainModule = process.argv[1] && fileURLToPath(import.meta.url) === proce
 if (isMainModule) {
   const port = await findPort()
   console.log(`Server listening on http://localhost:${port}`)
+
+  const portFile = join(baseDir, '.dev-port')
+  fs.writeFileSync(portFile, String(port))
+  const cleanupPortFile = () => {
+    try { fs.unlinkSync(portFile) } catch {}
+  }
+  process.on('exit', cleanupPortFile)
+  process.on('SIGINT', () => { cleanupPortFile(); process.exit(0) })
+  process.on('SIGTERM', () => { cleanupPortFile(); process.exit(0) })
+
   open(`http://localhost:${port}`)
 }
 

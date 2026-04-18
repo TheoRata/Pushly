@@ -21,3 +21,6 @@ raw/
 data/pushly.db
 data/pushly.db-wal
 data/pushly.db-shm
+
+# Dev-only: server writes actual port here so Vite proxy can find it
+.dev-port
