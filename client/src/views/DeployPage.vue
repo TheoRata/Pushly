@@ -13,6 +13,7 @@ import OrgDropdown from '../components/OrgDropdown.vue'
 import MetadataTree from '../components/MetadataTree.vue'
 import ProgressTracker from '../components/ProgressTracker.vue'
 import ConfirmModal from '../components/ConfirmModal.vue'
+import GlassSkeleton from '../components/glass/GlassSkeleton.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -469,7 +470,7 @@ function formatDate(dateStr) {
   <div :class="currentStep === 1 ? 'flex flex-col h-[calc(100vh-48px)] px-4 py-3' : 'max-w-5xl mx-auto px-6 py-8'">
     <!-- Page header -->
     <div :class="currentStep === 1 ? 'mb-3 shrink-0' : 'mb-8'">
-      <h1 class="text-2xl font-bold text-[var(--text-primary)]">Deploy to Org</h1>
+      <h1 class="text-3xl font-bold tracking-tight text-[var(--text-primary)]" style="text-wrap: balance">Deploy to Org</h1>
       <p class="mt-1 text-sm text-[var(--text-secondary)]">
         Push components to a target Salesforce org
       </p>
@@ -733,13 +734,17 @@ function formatDate(dateStr) {
             <span class="font-medium text-[var(--text-primary)]">{{ targetOrg }}</span>
           </p>
 
-          <!-- Validating spinner -->
-          <div v-if="validating" class="flex flex-col items-center gap-3 py-12">
-            <svg class="animate-spin w-8 h-8 text-[var(--color-primary)]" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-            <span class="text-sm text-[var(--text-muted)]">Validating deployment...</span>
+          <!-- Validating skeleton -->
+          <div v-if="validating" class="flex flex-col items-center gap-3 py-12" role="status" aria-live="polite">
+            <div aria-hidden="true" class="w-full max-w-md space-y-3">
+              <GlassSkeleton variant="line" width="60%" height="14px" />
+              <GlassSkeleton variant="rect" width="100%" height="8px" rounded="var(--radius-sm)" />
+              <div class="flex justify-between">
+                <GlassSkeleton variant="line" width="100px" height="12px" />
+                <GlassSkeleton variant="line" width="40px" height="12px" />
+              </div>
+            </div>
+            <span class="sr-only">Validating deployment...</span>
           </div>
 
           <!-- Validation error -->

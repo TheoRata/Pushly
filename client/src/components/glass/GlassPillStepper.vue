@@ -13,6 +13,7 @@ defineEmits(['step-click'])
     <button
       v-for="(step, i) in steps"
       :key="step.key"
+      :aria-current="currentStep === step.key ? 'step' : undefined"
       class="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-[var(--radius-sm)] transition-all duration-200"
       :class="[
         currentStep === step.key

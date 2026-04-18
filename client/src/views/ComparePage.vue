@@ -6,6 +6,7 @@ import GlassCard from '../components/glass/GlassCard.vue'
 import GlassButton from '../components/glass/GlassButton.vue'
 import GlassBadge from '../components/glass/GlassBadge.vue'
 import OrgDropdown from '../components/OrgDropdown.vue'
+import GlassSkeleton from '../components/glass/GlassSkeleton.vue'
 
 const router = useRouter()
 
@@ -172,7 +173,7 @@ const sortOptions = [
     <div class="border-b border-[var(--glass-border)] p-6" style="background: var(--glass-bg);">
       <div class="max-w-5xl mx-auto">
         <div class="mb-4">
-          <h1 class="text-2xl font-semibold text-[var(--text-primary)]">Compare Orgs</h1>
+          <h1 class="text-3xl font-semibold tracking-tight text-[var(--text-primary)]" style="text-wrap: balance">Compare Orgs</h1>
           <p class="text-sm text-[var(--text-secondary)]">Side-by-side metadata diff between two Salesforce orgs</p>
         </div>
         <div class="flex items-end gap-4">
@@ -205,10 +206,16 @@ const sortOptions = [
     <!-- Main Content -->
     <div class="flex-1 overflow-hidden flex flex-col">
 
-      <!-- Loading -->
-      <div v-if="loading" class="flex flex-col items-center justify-center flex-1 gap-4">
-        <div class="w-8 h-8 border-2 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" />
-        <p class="text-sm text-[var(--text-muted)]">Fetching metadata inventory from both orgs&hellip;</p>
+      <!-- Loading skeleton -->
+      <div v-if="loading" class="flex-1 grid grid-cols-2 gap-4" role="status" aria-live="polite">
+        <div v-for="n in 2" :key="n" class="glass p-5 space-y-4" aria-hidden="true">
+          <GlassSkeleton variant="line" width="120px" height="18px" />
+          <div v-for="m in 6" :key="m" class="flex items-center gap-3">
+            <GlassSkeleton variant="line" width="16px" height="16px" rounded="var(--radius-sm)" />
+            <GlassSkeleton variant="line" :width="m % 2 === 0 ? '70%' : '55%'" height="14px" />
+          </div>
+        </div>
+        <span class="sr-only">Fetching metadata inventory from both orgs...</span>
       </div>
 
       <!-- Error -->

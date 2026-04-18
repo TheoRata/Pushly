@@ -13,6 +13,7 @@ import GlassToggle from '../components/glass/GlassToggle.vue'
 import OrgDropdown from '../components/OrgDropdown.vue'
 import MetadataTree from '../components/MetadataTree.vue'
 import ProgressTracker from '../components/ProgressTracker.vue'
+import GlassSkeleton from '../components/glass/GlassSkeleton.vue'
 
 const router = useRouter()
 const api = useApi()
@@ -181,7 +182,7 @@ function tryAgain() {
   <div :class="currentStepIndex === 1 ? 'flex flex-col h-[calc(100vh-48px)] px-4 py-3' : 'max-w-5xl mx-auto px-6 py-8'">
     <!-- Page header -->
     <div :class="currentStepIndex === 1 ? 'mb-3 shrink-0' : 'mb-8'">
-      <h1 class="text-2xl font-bold text-[var(--text-primary)]">Retrieve Components</h1>
+      <h1 class="text-3xl font-bold tracking-tight text-[var(--text-primary)]" style="text-wrap: balance">Retrieve Components</h1>
       <p class="mt-1 text-sm text-[var(--text-secondary)]">Pull metadata from a Salesforce org</p>
     </div>
 
@@ -221,13 +222,13 @@ function tryAgain() {
             />
           </div>
 
-          <!-- Auth check status -->
-          <div v-if="selectedOrg && authChecking" class="mt-4 flex items-center gap-2">
-            <svg class="animate-spin w-4 h-4 text-[var(--color-primary)]" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-            <span class="text-sm text-[var(--text-muted)]">Checking connection...</span>
+          <!-- Auth check skeleton -->
+          <div v-if="selectedOrg && authChecking" class="mt-4 flex items-center gap-2" role="status" aria-live="polite">
+            <div aria-hidden="true" class="flex items-center gap-2">
+              <GlassSkeleton variant="circle" width="16px" height="16px" />
+              <GlassSkeleton variant="line" width="140px" height="14px" />
+            </div>
+            <span class="sr-only">Checking connection...</span>
           </div>
           <div v-else-if="selectedOrg && authOk" class="mt-4 flex items-center gap-2">
             <GlassBadge variant="success">Connected</GlassBadge>
