@@ -8,6 +8,7 @@ import ConfirmModal from '../components/ConfirmModal.vue'
 import GlassCard from '../components/glass/GlassCard.vue'
 import GlassButton from '../components/glass/GlassButton.vue'
 import GlassHoverButton from '../components/glass/GlassHoverButton.vue'
+import GlassSkeleton from '../components/glass/GlassSkeleton.vue'
 
 const { orgs, loading, refresh, removeOrg } = useOrgs()
 const api = useApi()
@@ -68,12 +69,20 @@ function cancelRemove() {
 
 <template>
   <div class="max-w-5xl mx-auto px-6 py-8">
-    <!-- Loading state -->
-    <div v-if="loading && orgs.length === 0" class="flex items-center justify-center py-32">
-      <svg class="w-8 h-8 text-[var(--color-primary)] animate-spin" fill="none" viewBox="0 0 24 24">
-        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" />
-        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-      </svg>
+    <!-- Loading skeleton -->
+    <div v-if="loading && orgs.length === 0" class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div v-for="n in 6" :key="n" class="glass p-5 space-y-3">
+        <div class="flex items-center justify-between">
+          <GlassSkeleton variant="line" width="120px" height="18px" />
+          <GlassSkeleton variant="circle" width="10px" height="10px" />
+        </div>
+        <GlassSkeleton variant="line" width="80%" height="13px" />
+        <GlassSkeleton variant="line" width="50%" height="13px" />
+        <div class="flex gap-2 pt-2">
+          <GlassSkeleton variant="line" width="70px" height="28px" rounded="var(--radius-md)" />
+          <GlassSkeleton variant="line" width="70px" height="28px" rounded="var(--radius-md)" />
+        </div>
+      </div>
     </div>
 
     <!-- Empty state -->
