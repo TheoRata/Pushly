@@ -61,7 +61,7 @@ const icons = {
       </div>
     </div>
 
-    <div class="w-[140px] flex justify-end">
+    <div class="min-w-[140px] flex justify-end">
       <slot name="right" />
     </div>
   </nav>
