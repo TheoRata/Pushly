@@ -7,6 +7,7 @@ import GlassCard from '../components/glass/GlassCard.vue'
 import GlassSpotlightCard from '../components/glass/GlassSpotlightCard.vue'
 import GlassButton from '../components/glass/GlassButton.vue'
 import GlassBadge from '../components/glass/GlassBadge.vue'
+import GlassSkeleton from '../components/glass/GlassSkeleton.vue'
 
 const router = useRouter()
 const api = useApi()
@@ -125,10 +126,27 @@ const typeConfig = {
       </div>
     </div>
 
-    <!-- Loading -->
-    <div v-if="loading" class="flex justify-center py-20">
-      <div class="animate-spin w-8 h-8 border-2 border-[var(--color-primary)] border-t-transparent rounded-full" />
-    </div>
+    <!-- Loading skeleton -->
+    <template v-if="loading">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div v-for="n in 4" :key="n" class="glass p-5 space-y-3">
+          <GlassSkeleton variant="line" width="60%" height="12px" />
+          <GlassSkeleton variant="line" width="40%" height="28px" />
+          <GlassSkeleton variant="line" width="80%" height="12px" />
+        </div>
+      </div>
+      <div class="glass p-5 space-y-4">
+        <GlassSkeleton variant="line" width="140px" height="18px" />
+        <div v-for="n in 5" :key="n" class="flex items-center gap-4 py-3">
+          <GlassSkeleton variant="circle" width="32px" height="32px" />
+          <div class="flex-1 space-y-2">
+            <GlassSkeleton variant="line" width="70%" height="14px" />
+            <GlassSkeleton variant="line" width="40%" height="12px" />
+          </div>
+          <GlassSkeleton variant="line" width="80px" height="12px" />
+        </div>
+      </div>
+    </template>
 
     <!-- Error state -->
     <div v-else-if="error && !history.length" class="flex items-center justify-center py-20">
