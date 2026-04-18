@@ -94,7 +94,7 @@ const typeConfig = {
     <!-- Header + Quick Actions -->
     <div class="flex items-start justify-between mb-8">
       <div>
-        <h1 class="text-2xl font-bold text-[var(--text-primary)]">Dashboard</h1>
+        <h1 class="text-3xl font-bold tracking-tight text-[var(--text-primary)]" style="text-wrap: balance">Dashboard</h1>
         <p class="text-sm text-[var(--text-secondary)] mt-1">Overview of your Salesforce deployment pipeline</p>
       </div>
       <div class="flex gap-2">

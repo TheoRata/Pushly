@@ -245,7 +245,7 @@ watch([filterUser, filterOrg, filterStatus, filterRange], fetchHistory)
     <div class="border-b border-[var(--glass-border)] p-6" style="background: var(--glass-bg);">
       <div class="max-w-7xl mx-auto space-y-4">
         <div>
-          <h1 class="text-2xl font-semibold text-[var(--text-primary)]">Logs</h1>
+          <h1 class="text-3xl font-semibold tracking-tight text-[var(--text-primary)]" style="text-wrap: balance">Logs</h1>
           <p class="text-sm text-[var(--text-secondary)]">
             {{ filteredRecords.length }} of {{ records.length }} logs
           </p>

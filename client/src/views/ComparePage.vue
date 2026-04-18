@@ -172,7 +172,7 @@ const sortOptions = [
     <div class="border-b border-[var(--glass-border)] p-6" style="background: var(--glass-bg);">
       <div class="max-w-5xl mx-auto">
         <div class="mb-4">
-          <h1 class="text-2xl font-semibold text-[var(--text-primary)]">Compare Orgs</h1>
+          <h1 class="text-3xl font-semibold tracking-tight text-[var(--text-primary)]" style="text-wrap: balance">Compare Orgs</h1>
           <p class="text-sm text-[var(--text-secondary)]">Side-by-side metadata diff between two Salesforce orgs</p>
         </div>
         <div class="flex items-end gap-4">

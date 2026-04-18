@@ -469,7 +469,7 @@ function formatDate(dateStr) {
   <div :class="currentStep === 1 ? 'flex flex-col h-[calc(100vh-48px)] px-4 py-3' : 'max-w-5xl mx-auto px-6 py-8'">
     <!-- Page header -->
     <div :class="currentStep === 1 ? 'mb-3 shrink-0' : 'mb-8'">
-      <h1 class="text-2xl font-bold text-[var(--text-primary)]">Deploy to Org</h1>
+      <h1 class="text-3xl font-bold tracking-tight text-[var(--text-primary)]" style="text-wrap: balance">Deploy to Org</h1>
       <p class="mt-1 text-sm text-[var(--text-secondary)]">
         Push components to a target Salesforce org
       </p>

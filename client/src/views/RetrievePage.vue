@@ -181,7 +181,7 @@ function tryAgain() {
   <div :class="currentStepIndex === 1 ? 'flex flex-col h-[calc(100vh-48px)] px-4 py-3' : 'max-w-5xl mx-auto px-6 py-8'">
     <!-- Page header -->
     <div :class="currentStepIndex === 1 ? 'mb-3 shrink-0' : 'mb-8'">
-      <h1 class="text-2xl font-bold text-[var(--text-primary)]">Retrieve Components</h1>
+      <h1 class="text-3xl font-bold tracking-tight text-[var(--text-primary)]" style="text-wrap: balance">Retrieve Components</h1>
       <p class="mt-1 text-sm text-[var(--text-secondary)]">Pull metadata from a Salesforce org</p>
     </div>
 

@@ -99,7 +99,7 @@ function cancelRemove() {
     <template v-else>
       <!-- Page header -->
       <div class="flex items-center justify-between mb-6">
-        <h1 class="text-2xl font-bold text-[var(--text-primary)]">Connected Orgs</h1>
+        <h1 class="text-3xl font-bold tracking-tight text-[var(--text-primary)]" style="text-wrap: balance">Connected Orgs</h1>
         <GlassHoverButton text="Connect Org" @click="openConnect" />
       </div>
 
