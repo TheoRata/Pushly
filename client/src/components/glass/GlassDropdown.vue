@@ -94,6 +94,8 @@ watch(query, () => { highlightIndex.value = 0 })
       type="button"
       class="w-full flex items-center justify-between px-3 py-2 text-sm rounded-[var(--radius-md)] glass transition-all duration-200"
       :class="open ? 'border-[var(--color-primary-border)] glow-sm' : 'glass-hover'"
+      :aria-expanded="open"
+      aria-haspopup="listbox"
       @click="toggle"
     >
       <span :class="selected ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'">
@@ -148,7 +150,7 @@ watch(query, () => { highlightIndex.value = 0 })
         </div>
 
         <!-- List -->
-        <div ref="listRef" class="max-h-56 overflow-y-auto p-1">
+        <div ref="listRef" role="listbox" class="max-h-56 overflow-y-auto p-1">
           <div v-if="filtered.length === 0" class="px-3 py-4 text-center text-sm text-[var(--text-muted)]">
             {{ emptyText }}
           </div>
@@ -158,6 +160,8 @@ watch(query, () => { highlightIndex.value = 0 })
             :key="opt.value"
             :data-index="i"
             type="button"
+            role="option"
+            :aria-selected="opt.value === modelValue"
             class="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-[var(--radius-sm)] transition-all duration-100 cursor-pointer"
             :class="[
               opt.disabled && 'opacity-40 cursor-not-allowed pointer-events-none',

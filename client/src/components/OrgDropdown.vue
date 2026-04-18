@@ -110,6 +110,8 @@ watch(query, () => { highlightIndex.value = 0 })
       class="flex items-center justify-between w-full px-3 py-2.5 rounded-[var(--radius-md)] glass text-sm transition-all duration-200 cursor-pointer"
       :class="open ? 'border-[var(--color-primary-border)] glow-sm' : 'glass-hover'"
       style="backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur)"
+      :aria-expanded="open"
+      aria-haspopup="listbox"
       @click="toggle"
     >
       <span v-if="selectedOrg" class="flex items-center gap-2 truncate text-[var(--text-primary)]">
@@ -160,7 +162,7 @@ watch(query, () => { highlightIndex.value = 0 })
         </div>
 
         <!-- List -->
-        <div ref="listRef" class="max-h-56 overflow-y-auto p-1">
+        <div ref="listRef" role="listbox" class="max-h-56 overflow-y-auto p-1">
           <div v-if="filtered.length === 0" class="px-3 py-4 text-center text-sm text-[var(--text-muted)]">
             No orgs found.
           </div>
@@ -170,6 +172,8 @@ watch(query, () => { highlightIndex.value = 0 })
             :key="org.alias"
             :data-index="i"
             type="button"
+            role="option"
+            :aria-selected="org.alias === modelValue"
             class="w-full flex items-center gap-2 px-2 py-2 text-sm rounded-[var(--radius-sm)] transition-all duration-100 cursor-pointer"
             :class="[
               org.status === 'expired' && 'opacity-60',

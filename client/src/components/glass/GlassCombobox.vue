@@ -106,6 +106,8 @@ function onClickOutside(e) {
       type="button"
       class="w-full flex items-center justify-between px-3 py-2 text-sm rounded-[var(--radius-md)] glass transition-all duration-200 cursor-pointer"
       :class="open ? 'border-[var(--color-primary-border)] glow-sm' : 'glass-hover'"
+      :aria-expanded="open"
+      aria-haspopup="listbox"
       @click="toggle"
     >
       <span v-if="selected" class="flex items-center gap-2 truncate text-[var(--text-primary)]">
@@ -164,7 +166,7 @@ function onClickOutside(e) {
         </div>
 
         <!-- Options list -->
-        <div ref="listRef" class="max-h-56 overflow-y-auto p-1">
+        <div ref="listRef" role="listbox" class="max-h-56 overflow-y-auto p-1">
           <div v-if="filtered.length === 0" class="px-3 py-4 text-center text-sm text-[var(--text-muted)]">
             {{ emptyText }}
           </div>
@@ -174,6 +176,8 @@ function onClickOutside(e) {
             :key="opt.value"
             :data-index="i"
             type="button"
+            role="option"
+            :aria-selected="opt.value === modelValue"
             class="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-[var(--radius-sm)] transition-all duration-100 cursor-pointer"
             :class="[
               opt.disabled && 'opacity-40 cursor-not-allowed pointer-events-none',
